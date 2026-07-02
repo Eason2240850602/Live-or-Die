@@ -1,29 +1,26 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Day 3：最简背包 = 计数 + 容量上限。不做格子/图标/任何 UI，靠 Console 打印体现。
-/// 挂在玩家身上；撤离点读它的当前数量来结算。
+/// 盲盒第 3 块：背包从纯计数升级为记录物品名称列表；容量逻辑不变(每件占 1 格)。
+/// 仍不做任何 UI，靠 Console。数据持有者，narration 交给调用方。
 /// </summary>
 public class Inventory : MonoBehaviour
 {
     [Tooltip("背包容量上限")]
-    public int capacity = 8;
+    public int capacity = 5;
 
-    int count;
+    readonly List<string> items = new List<string>();
 
-    public int Count => count;
-    public bool IsFull => count >= capacity;
+    public int Count => items.Count;
+    public bool IsFull => items.Count >= capacity;
+    public IReadOnlyList<string> Items => items;
 
-    /// <summary>尝试拾取一个物资；满了返回 false。</summary>
-    public bool TryAdd()
+    /// <summary>装入一件（按名字）；满了返回 false（不打印，由调用方叙述）。</summary>
+    public bool TryAdd(string itemName)
     {
-        if (IsFull)
-        {
-            Debug.Log("背包已满");
-            return false;
-        }
-        count++;
-        Debug.Log($"拾取物资，当前 {count}/{capacity}");
+        if (IsFull) return false;
+        items.Add(itemName);
         return true;
     }
 }
