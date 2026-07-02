@@ -16,6 +16,7 @@ public class HudController : MonoBehaviour
     Inventory inventory;
     Font font;
     Sprite white;
+    LootWindow lootWindow;
 
     Text counterText;
     Text messageText;
@@ -39,6 +40,12 @@ public class HudController : MonoBehaviour
         white = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f));
 
         BuildUI();
+
+        var lwGO = new GameObject("LootWindow");
+        lwGO.transform.SetParent(transform, false);
+        lootWindow = lwGO.AddComponent<LootWindow>();
+        lootWindow.Init(font, white);
+
         SceneManager.sceneLoaded += OnSceneLoaded;
         AcquireInventory();
     }
@@ -55,6 +62,7 @@ public class HudController : MonoBehaviour
         HideProgress();
         if (messageText != null) messageText.text = "";
         messageTimer = 0f;
+        lootWindow?.Close();
     }
 
     void AcquireInventory()
@@ -86,6 +94,8 @@ public class HudController : MonoBehaviour
         messageText.text = msg;
         messageTimer = seconds;
     }
+
+    public void OpenLootWindow(Pickup container) => lootWindow?.Open(container);
 
     void BuildUI()
     {

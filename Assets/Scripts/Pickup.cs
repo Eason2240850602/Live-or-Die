@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 盲盒容器。第 5 块：内容物本局内持久化。
-/// 首次搜刮：2.5s 等待(可中断，第2块) → 掷骰一次(空箱/件数/权重，第3块) → 内容物存进容器 → 自动"能装多少装多少"。
-/// 有剩余 → 容器保留=已开封；再次交互不等待，直接转移剩余（绝不重掷）。拿光或空箱 → 容器消失。
-/// 战利品表挂 Inspector（第3块）；堆叠/组大小查 ItemDatabase（第5块）。纯 transform + 距离判断。
+/// 盲盒容器。第 6 块：搜刮完成不再自动转移，改为弹出九宫格窗口由玩家选择拿取。
+/// 首次搜刮：2.5s 等待(可中断) → 掷骰入箱(第5块，绝不重掷) → 开窗。
+/// 已开封再交互：无等待，秒开窗，内容一致。拿光/空箱 → 容器消失。
+/// 拿取动作由 LootWindow 调用 TakeStackAt / TakeAll。纯 transform + 距离判断。
 /// </summary>
 public class Pickup : MonoBehaviour
 {
@@ -32,12 +32,16 @@ public class Pickup : MonoBehaviour
     public bool IsSearching { get; private set; }
     public bool Searched { get; private set; }
 
+    public string ContainerName => containerName;
+    public float SearchRange => searchRange;
+    public IReadOnlyList<ItemStack> Contents => contents;
+
     Transform player;
     Inventory inventory;
     Health playerHealth;
 
-    bool opened;                                                // 已开封（已掷骰）
-    readonly List<ItemStack> contents = new List<ItemStack>();  // 容器内剩余内容物（本局持久）
+    bool opened;
+    readonly List<ItemStack> contents = new List<ItemStack>();
 
     void Awake()
     {
@@ -57,8 +61,8 @@ public class Pickup : MonoBehaviour
     public void BeginSearch()
     {
         if (!CanSearch()) return;
-        if (opened) TakeRemaining();            // 已开封 → 不等待，直接拿剩余
-        else StartCoroutine(SearchRoutine());   // 首次 → 2.5s 等待
+        if (opened) HudController.Instance?.OpenLootWindow(this);   // 已开封 → 秒开窗
+        else StartCoroutine(SearchRoutine());                       // 首次 → 等待
     }
 
     IEnumerator SearchRoutine()
@@ -67,7 +71,6 @@ public class Pickup : MonoBehaviour
         Debug.Log($"开始搜刮 [{containerName}]...");
         HudController.Instance?.ShowProgress();
 
-        // —— 第 2 块：逐帧计时，可被打断 ——
         float startHealth = playerHealth != null ? playerHealth.Current : float.MaxValue;
         float t = 0f;
         while (t < searchDuration)
@@ -81,69 +84,64 @@ public class Pickup : MonoBehaviour
         HudController.Instance?.HideProgress();
         Debug.Log($"搜刮完成 [{containerName}]");
 
-        // —— 掷骰一次，结果存进容器（绝不重掷）——
+        // 掷骰一次，存进容器（绝不重掷）
         if (Random.value < emptyChance)
         {
             Debug.Log("什么都没有...");
-            HudController.Instance?.ShowMessage("什么都没有...", 2f);
             Searched = true;
             Destroy(gameObject);
             yield break;
         }
 
         int count = Random.value < twoItemChance ? 2 : 1;
-        var ui = new System.Text.StringBuilder();
         for (int i = 0; i < count; i++)
         {
             string name = RollLoot();
             int group = ItemDatabase.GroupSize(name);
             AddToContents(name, group);
-            string line = group > 1 ? $"开出:{name} x{group}" : $"开出:{name}";
-            Debug.Log(line);
-            ui.AppendLine(line);
+            Debug.Log(group > 1 ? $"开出:{name} x{group}" : $"开出:{name}");
         }
         opened = true;
-        HudController.Instance?.ShowMessage(ui.ToString().TrimEnd(), 2f);
-
         IsSearching = false;
-        TransferToInventory();
+        HudController.Instance?.OpenLootWindow(this);   // 弹窗展示，玩家选择拿取
     }
 
     void Interrupt(string reason)
     {
         Debug.Log(reason);
         HudController.Instance?.HideProgress();
-        HudController.Instance?.ShowMessage(reason, 1.5f);
-        IsSearching = false;   // 未掷骰、未开封 → 下次重新等待
+        HudController.Instance?.ShowMessage(reason, 1.5f);   // 打断提示保留（第4块）
+        IsSearching = false;
     }
 
-    void TakeRemaining()
+    // —— 供 LootWindow 调用 ——
+    public void TakeStackAt(int index)
     {
-        Debug.Log($"再翻 [{containerName}]...");
-        TransferToInventory();
+        if (index < 0 || index >= contents.Count) return;
+        var s = contents[index];
+        if (inventory != null) s.count -= inventory.AddItem(s.name, s.count);
+        contents.RemoveAll(x => x.count <= 0);
+        if (inventory != null) Debug.Log(inventory.GridView());
+        CheckConsumed();
     }
 
-    /// <summary>把容器内容物"能装多少装多少"转移进背包；拿光则容器消失，有剩余则保留。</summary>
-    void TransferToInventory()
+    public void TakeAll()
     {
         if (inventory != null)
         {
-            foreach (var s in contents)
-                s.count -= inventory.AddItem(s.name, s.count);
-            contents.RemoveAll(s => s.count <= 0);
+            foreach (var s in contents) s.count -= inventory.AddItem(s.name, s.count);
+            contents.RemoveAll(x => x.count <= 0);
             Debug.Log(inventory.GridView());
         }
+        CheckConsumed();
+    }
 
+    void CheckConsumed()
+    {
         if (contents.Count == 0)
         {
             Searched = true;
-            Destroy(gameObject);            // 拿光 → 容器消失
-        }
-        else
-        {
-            var left = new List<string>();
-            foreach (var s in contents) left.Add(s.count > 1 ? $"{s.name}x{s.count}" : s.name);
-            Debug.Log("背包装不下，留在容器: " + string.Join(" | ", left));
+            Destroy(gameObject);   // 拿光 → 容器消失
         }
     }
 
