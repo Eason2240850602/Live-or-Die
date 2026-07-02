@@ -65,6 +65,7 @@ public class Pickup : MonoBehaviour
     {
         IsSearching = true;
         Debug.Log($"开始搜刮 [{containerName}]...");
+        HudController.Instance?.ShowProgress();
 
         // —— 第 2 块：逐帧计时，可被打断 ——
         float startHealth = playerHealth != null ? playerHealth.Current : float.MaxValue;
@@ -74,18 +75,24 @@ public class Pickup : MonoBehaviour
             if (player == null || Vector3.Distance(transform.position, player.position) > searchRange)
             {
                 Debug.Log("搜刮被打断(离开范围)");
+                HudController.Instance?.HideProgress();
+                HudController.Instance?.ShowMessage("搜刮被打断(离开范围)", 1.5f);
                 IsSearching = false;
                 yield break;
             }
             if (playerHealth != null && playerHealth.Current < startHealth)
             {
                 Debug.Log("搜刮被打断(受到攻击)");
+                HudController.Instance?.HideProgress();
+                HudController.Instance?.ShowMessage("搜刮被打断(受到攻击)", 1.5f);
                 IsSearching = false;
                 yield break;
             }
+            HudController.Instance?.SetProgress(t / searchDuration);
             t += Time.deltaTime;
             yield return null;
         }
+        HudController.Instance?.HideProgress();
 
         // —— 第 3 块：开箱结算 ——
         Debug.Log($"搜刮完成 [{containerName}]");
@@ -94,6 +101,7 @@ public class Pickup : MonoBehaviour
         if (Random.value < emptyChance)
         {
             Debug.Log("什么都没有...");
+            HudController.Instance?.ShowMessage("什么都没有...", 2f);
             Searched = true;
             Destroy(gameObject);
             yield break;
@@ -102,17 +110,23 @@ public class Pickup : MonoBehaviour
         // 2) 件数：twoItemChance 出 2 件，否则 1 件（2 件允许重复）
         int count = Random.value < twoItemChance ? 2 : 1;
         bool allGiven = true;
+        var ui = new System.Text.StringBuilder();
         for (int i = 0; i < count; i++)
         {
             string item = RollLoot();
             if (inventory != null && inventory.TryAdd(item))
+            {
                 Debug.Log($"开出:{item}（背包 {inventory.Count}/{inventory.capacity}）");
+                ui.AppendLine($"开出:{item}");
+            }
             else
             {
                 Debug.Log($"开出:{item} → 背包已满，没带走");
+                ui.AppendLine($"开出:{item} → 背包已满,没带走");
                 allGiven = false;
             }
         }
+        HudController.Instance?.ShowMessage(ui.ToString().TrimEnd(), 2f);
 
         if (allGiven)
         {
