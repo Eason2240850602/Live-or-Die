@@ -1,11 +1,12 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 盲盒容器：品类锁定 + 随机战利品表（第 3 块）。搜刮流程与中断（第 2 块）不变，
-/// 只在"搜刮完成"处接入开箱规则：空箱判定 → 件数判定 → 按权重从本容器品类池抽取。
-/// 战利品表用 Serializable 数组挂在 Inspector（不搞 ScriptableObject/JSON/物品类体系）。
-/// 纯 transform + 距离判断，不引入物理。按 E 的目标查找在 PlayerInteraction 里。
+/// 盲盒容器。第 5 块：内容物本局内持久化。
+/// 首次搜刮：2.5s 等待(可中断，第2块) → 掷骰一次(空箱/件数/权重，第3块) → 内容物存进容器 → 自动"能装多少装多少"。
+/// 有剩余 → 容器保留=已开封；再次交互不等待，直接转移剩余（绝不重掷）。拿光或空箱 → 容器消失。
+/// 战利品表挂 Inspector（第3块）；堆叠/组大小查 ItemDatabase（第5块）。纯 transform + 距离判断。
 /// </summary>
 public class Pickup : MonoBehaviour
 {
@@ -17,19 +18,15 @@ public class Pickup : MonoBehaviour
     }
 
     [Header("容器")]
-    [Tooltip("容器类型名（仅用于 Console 打印区分）")]
     public string containerName = "容器";
-    [Tooltip("本容器的品类池：名称 + 权重")]
     public LootEntry[] lootTable;
 
     [Header("开箱概率")]
-    [Range(0f, 1f)] public float emptyChance = 0.1f;   // 空箱
-    [Range(0f, 1f)] public float twoItemChance = 0.3f; // 出 2 件（否则 1 件）
+    [Range(0f, 1f)] public float emptyChance = 0.1f;
+    [Range(0f, 1f)] public float twoItemChance = 0.3f;
 
     [Header("搜刮")]
-    [Tooltip("可搜刮距离")]
     public float searchRange = 1.5f;
-    [Tooltip("搜刮等待时长（秒）")]
     public float searchDuration = 2.5f;
 
     public bool IsSearching { get; private set; }
@@ -38,6 +35,9 @@ public class Pickup : MonoBehaviour
     Transform player;
     Inventory inventory;
     Health playerHealth;
+
+    bool opened;                                                // 已开封（已掷骰）
+    readonly List<ItemStack> contents = new List<ItemStack>();  // 容器内剩余内容物（本局持久）
 
     void Awake()
     {
@@ -50,15 +50,15 @@ public class Pickup : MonoBehaviour
         }
     }
 
-    public bool CanSearch()
-    {
-        return !IsSearching && !Searched && player != null
-            && Vector3.Distance(transform.position, player.position) <= searchRange;
-    }
+    bool InRange() => player != null && Vector3.Distance(transform.position, player.position) <= searchRange;
+
+    public bool CanSearch() => !IsSearching && !Searched && InRange();
 
     public void BeginSearch()
     {
-        if (CanSearch()) StartCoroutine(SearchRoutine());
+        if (!CanSearch()) return;
+        if (opened) TakeRemaining();            // 已开封 → 不等待，直接拿剩余
+        else StartCoroutine(SearchRoutine());   // 首次 → 2.5s 等待
     }
 
     IEnumerator SearchRoutine()
@@ -72,32 +72,16 @@ public class Pickup : MonoBehaviour
         float t = 0f;
         while (t < searchDuration)
         {
-            if (player == null || Vector3.Distance(transform.position, player.position) > searchRange)
-            {
-                Debug.Log("搜刮被打断(离开范围)");
-                HudController.Instance?.HideProgress();
-                HudController.Instance?.ShowMessage("搜刮被打断(离开范围)", 1.5f);
-                IsSearching = false;
-                yield break;
-            }
-            if (playerHealth != null && playerHealth.Current < startHealth)
-            {
-                Debug.Log("搜刮被打断(受到攻击)");
-                HudController.Instance?.HideProgress();
-                HudController.Instance?.ShowMessage("搜刮被打断(受到攻击)", 1.5f);
-                IsSearching = false;
-                yield break;
-            }
+            if (!InRange()) { Interrupt("搜刮被打断(离开范围)"); yield break; }
+            if (playerHealth != null && playerHealth.Current < startHealth) { Interrupt("搜刮被打断(受到攻击)"); yield break; }
             HudController.Instance?.SetProgress(t / searchDuration);
             t += Time.deltaTime;
             yield return null;
         }
         HudController.Instance?.HideProgress();
-
-        // —— 第 3 块：开箱结算 ——
         Debug.Log($"搜刮完成 [{containerName}]");
 
-        // 1) 空箱 10%（空也算搜过）
+        // —— 掷骰一次，结果存进容器（绝不重掷）——
         if (Random.value < emptyChance)
         {
             Debug.Log("什么都没有...");
@@ -107,39 +91,68 @@ public class Pickup : MonoBehaviour
             yield break;
         }
 
-        // 2) 件数：twoItemChance 出 2 件，否则 1 件（2 件允许重复）
         int count = Random.value < twoItemChance ? 2 : 1;
-        bool allGiven = true;
         var ui = new System.Text.StringBuilder();
         for (int i = 0; i < count; i++)
         {
-            string item = RollLoot();
-            if (inventory != null && inventory.TryAdd(item))
-            {
-                Debug.Log($"开出:{item}（背包 {inventory.Count}/{inventory.capacity}）");
-                ui.AppendLine($"开出:{item}");
-            }
-            else
-            {
-                Debug.Log($"开出:{item} → 背包已满，没带走");
-                ui.AppendLine($"开出:{item} → 背包已满,没带走");
-                allGiven = false;
-            }
+            string name = RollLoot();
+            int group = ItemDatabase.GroupSize(name);
+            AddToContents(name, group);
+            string line = group > 1 ? $"开出:{name} x{group}" : $"开出:{name}";
+            Debug.Log(line);
+            ui.AppendLine(line);
         }
+        opened = true;
         HudController.Instance?.ShowMessage(ui.ToString().TrimEnd(), 2f);
 
-        if (allGiven)
+        IsSearching = false;
+        TransferToInventory();
+    }
+
+    void Interrupt(string reason)
+    {
+        Debug.Log(reason);
+        HudController.Instance?.HideProgress();
+        HudController.Instance?.ShowMessage(reason, 1.5f);
+        IsSearching = false;   // 未掷骰、未开封 → 下次重新等待
+    }
+
+    void TakeRemaining()
+    {
+        Debug.Log($"再翻 [{containerName}]...");
+        TransferToInventory();
+    }
+
+    /// <summary>把容器内容物"能装多少装多少"转移进背包；拿光则容器消失，有剩余则保留。</summary>
+    void TransferToInventory()
+    {
+        if (inventory != null)
+        {
+            foreach (var s in contents)
+                s.count -= inventory.AddItem(s.name, s.count);
+            contents.RemoveAll(s => s.count <= 0);
+            Debug.Log(inventory.GridView());
+        }
+
+        if (contents.Count == 0)
         {
             Searched = true;
-            Destroy(gameObject);      // 全部带走 → 容器消失
+            Destroy(gameObject);            // 拿光 → 容器消失
         }
         else
         {
-            IsSearching = false;      // 有东西没带走 → 容器保留可重搜
+            var left = new List<string>();
+            foreach (var s in contents) left.Add(s.count > 1 ? $"{s.name}x{s.count}" : s.name);
+            Debug.Log("背包装不下，留在容器: " + string.Join(" | ", left));
         }
     }
 
-    /// <summary>按权重从本容器品类池抽一件。</summary>
+    void AddToContents(string name, int qty)
+    {
+        foreach (var s in contents) if (s.name == name) { s.count += qty; return; }
+        contents.Add(new ItemStack(name, qty));
+    }
+
     string RollLoot()
     {
         if (lootTable == null || lootTable.Length == 0) return "空";

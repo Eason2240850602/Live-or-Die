@@ -3,8 +3,8 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// 撤离点。玩家靠近(距离判断) → 打印带回明细清单(名称 x 数量 + 总数) → 重开一局。
-/// 盲盒第 3 块：结算从"带回 X 物资"升级为逐项明细。
+/// 撤离点。玩家靠近(距离判断) → 按堆打印带回明细(名称 x 数量 + 总件数) → 重开一局。
+/// 第 5 块：读格子制背包的每一堆。撤离结算不做 UI，维持 Console。
 /// </summary>
 public class ExtractionPoint : MonoBehaviour
 {
@@ -39,22 +39,20 @@ public class ExtractionPoint : MonoBehaviour
 
     void PrintManifest()
     {
-        var items = inventory != null ? inventory.Items : null;
-        if (items == null || items.Count == 0)
+        var slots = inventory != null ? inventory.Slots : null;
+        if (slots == null || slots.Count == 0)
         {
             Debug.Log("本次带回:空手而归，共 0 件");
             return;
         }
 
-        // 按名称聚合计数
-        var counts = new Dictionary<string, int>();
-        foreach (var it in items)
-            counts[it] = counts.TryGetValue(it, out var c) ? c + 1 : 1;
-
         var parts = new List<string>();
-        foreach (var kv in counts)
-            parts.Add($"{kv.Key} x{kv.Value}");
-
-        Debug.Log("本次带回:" + string.Join(" / ", parts) + "，共 " + items.Count + " 件");
+        int total = 0;
+        foreach (var s in slots)
+        {
+            parts.Add(s.count > 1 ? $"{s.name} x{s.count}" : s.name);
+            total += s.count;
+        }
+        Debug.Log("本次带回:" + string.Join(" / ", parts) + "，共 " + total + " 件");
     }
 }

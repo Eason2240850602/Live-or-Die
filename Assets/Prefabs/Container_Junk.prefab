@@ -124,10 +124,12 @@ MonoBehaviour:
   containerName: "\u6742\u7269\u62BD\u5C49"
   lootTable:
   - itemName: "\u5E03\u6599"
-    weight: 40
+    weight: 30
   - itemName: "\u80F6\u5E26"
-    weight: 35
+    weight: 25
   - itemName: "\u7535\u6C60"
+    weight: 20
+  - itemName: "\u6728\u6750"
     weight: 25
   emptyChance: 0.1
   twoItemChance: 0.3

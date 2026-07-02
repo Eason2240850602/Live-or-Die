@@ -66,7 +66,7 @@ public class HudController : MonoBehaviour
     void Update()
     {
         if (counterText != null)
-            counterText.text = inventory != null ? $"背包 {inventory.Count}/{inventory.capacity}" : "背包 0/0";
+            counterText.text = inventory != null ? $"背包 {inventory.Count}/{inventory.capacity} 格" : "背包 0/0 格";
 
         if (messageTimer > 0f)
         {
