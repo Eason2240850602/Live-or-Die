@@ -19,6 +19,9 @@ public class Health : MonoBehaviour
     float current;
     bool dead;
 
+    /// <summary>当前血量（只读）。盲盒搜刮用它检测"受到攻击"以中断。</summary>
+    public float Current => current;
+
     void Awake() { current = maxHealth; }
 
     /// <summary>扣血；归零触发死亡。</summary>
