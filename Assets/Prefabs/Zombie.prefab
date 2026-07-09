@@ -124,9 +124,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7908251bdffd6374c8670618aa3b5953, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 2
+  mode: 0
+  patrolRange: 5
+  facingRight: 1
+  sightRange: 7
+  backSenseRange: 1.5
+  moveSpeed: 2.2
   touchRange: 1.2
-  touchDamagePerSecond: 20
+  touchDamagePerSecond: 35
 --- !u!114 &8088212753400016381
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -139,5 +144,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9cdbbb24c3ee5fe4e85efd7721dd9e7f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 100
+  maxHealth: 220
   onDeath: 0
