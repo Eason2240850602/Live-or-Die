@@ -778,6 +778,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   moveSpeed: 5
+  sneakSpeed: 2.5
 --- !u!23 &1057639570
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -882,7 +883,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   attackRange: 2
-  attackDamage: 50
 --- !u!114 &1057639575
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -897,6 +897,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 100
   onDeath: 1
+  invulnDuration: 1
 --- !u!114 &1057639576
 MonoBehaviour:
   m_ObjectHideFlags: 0
