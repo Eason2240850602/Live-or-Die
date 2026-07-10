@@ -12,6 +12,9 @@ public class PlayerMovement : MonoBehaviour
     [Tooltip("移动速度（世界单位/秒）")]
     public float moveSpeed = 5f;
 
+    /// <summary>朝向（只读）：最后一次水平移动方向，+1 右 / -1 左。相机前瞻用。</summary>
+    public int Facing { get; private set; } = 1;
+
     void Update()
     {
         var kb = Keyboard.current;
@@ -20,6 +23,8 @@ public class PlayerMovement : MonoBehaviour
         float x = 0f;
         if (kb.aKey.isPressed || kb.leftArrowKey.isPressed)  x -= 1f;
         if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) x += 1f;
+
+        if (x != 0f) Facing = x > 0f ? 1 : -1;
 
         // 只在 X 轴上左右移动
         transform.position += new Vector3(x, 0f, 0f) * moveSpeed * Time.deltaTime;
