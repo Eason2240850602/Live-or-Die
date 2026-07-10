@@ -40,6 +40,7 @@ public class ZombieController : MonoBehaviour
 
     Transform player;
     Health playerHealth;
+    PlayerMovement playerMove;
     float originX;          // 出生点（巡逻中心）
     int facing;             // +1 朝右 / -1 朝左
     int patrolDir = 1;
@@ -55,6 +56,7 @@ public class ZombieController : MonoBehaviour
         {
             player = pm.transform;
             playerHealth = pm.GetComponent<Health>();
+            playerMove = pm;
         }
         originX = transform.position.x;
         facing = facingRight ? 1 : -1;
@@ -111,9 +113,10 @@ public class ZombieController : MonoBehaviour
 
         if (!alerted)
         {
-            // 发现判定：面前 sightRange 内，或背后贴脸 backSenseRange 内
+            // 发现判定：面前 sightRange 内，或背后贴脸 backSenseRange 内；静步时正面视野减半(背后不变)
+            float effectiveSight = (playerMove != null && playerMove.IsSneaking) ? sightRange * 0.5f : sightRange;
             bool inFront = Mathf.Sign(dx) == facing;
-            if ((inFront && dist <= sightRange) || dist <= backSenseRange)
+            if ((inFront && dist <= effectiveSight) || dist <= backSenseRange)
             {
                 alerted = true;
                 Debug.Log("丧尸发现了你!");

@@ -1,10 +1,10 @@
 using System.Collections.Generic;
-using System.Text;
 using UnityEngine;
 
 /// <summary>
-/// 盲盒第 5 块：格子制背包。capacity 格，一格 = 一堆(同名，≤堆叠上限) 或 一件武器。
-/// 入包：先并入未满的同名堆，再开新格；无格可用且无堆可并 = 装不下。仍无 UI，靠 Console。
+/// 格子制背包 + 闭环v1 装备架构。
+/// 5 格背包；双手槽（v1 左手禁用、只用右手）；医疗快捷栏（只收医疗品，容纳一个堆）。
+/// 无任何自动装备/自动使用——一切经背包页手动操作；斩杀线保命是唯一例外（玩家提前配置）。
 /// </summary>
 public class Inventory : MonoBehaviour
 {
@@ -13,11 +13,19 @@ public class Inventory : MonoBehaviour
 
     readonly List<ItemStack> slots = new List<ItemStack>();
 
-    public int Count => slots.Count;              // 已用格数
+    // —— 装备（按双手架构，v1 只启用右手；不写死"只能撬棍"）——
+    public string RightHand { get; private set; }          // null = 空手
+    public string LeftHand => null;                        // v1 禁用
+    public ItemStack MedSlot { get; private set; }         // 医疗快捷栏（一个堆）
+
+    public int Count => slots.Count;
     public bool IsFull => slots.Count >= capacity;
     public IReadOnlyList<ItemStack> Slots => slots;
 
-    /// <summary>装入 qty 个 name；返回实际装入数量（先并同名未满堆，再开新格）。</summary>
+    /// <summary>当前攻击伤害：空手25，持武器用武器伤害。</summary>
+    public int AttackDamage => RightHand == null ? 25 : ItemDatabase.Get(RightHand).damage;
+
+    /// <summary>装入 qty 个 name；返回实际装入数量。</summary>
     public int AddItem(string name, int qty)
     {
         int stackMax = ItemDatabase.StackMax(name);
@@ -41,7 +49,82 @@ public class Inventory : MonoBehaviour
         return added;
     }
 
-    /// <summary>Console 格子视图：背包[1/5]: 木材x5 | 罐头x2 | 撬棍 | - | -</summary>
+    /// <summary>背包页"使用"：消耗品回血（上限100截断），堆减1。返回是否成功。</summary>
+    public bool UseAt(int index)
+    {
+        if (index < 0 || index >= slots.Count) return false;
+        var s = slots[index];
+        var def = ItemDatabase.Get(s.name);
+        if (def.heal <= 0) return false;
+
+        var h = GetComponent<Health>();
+        if (h != null) h.HealPlayer(def.heal);
+        ConsumeAt(index);
+        return true;
+    }
+
+    /// <summary>背包页"装备到右手"：武器从格子移入槽位（不占格）。右手已有则先要求卸下。</summary>
+    public bool EquipRightHandFrom(int index)
+    {
+        if (index < 0 || index >= slots.Count) return false;
+        var s = slots[index];
+        if (!ItemDatabase.Get(s.name).weapon || RightHand != null) return false;
+        RightHand = s.name;
+        ConsumeAt(index);
+        return true;
+    }
+
+    /// <summary>背包页"卸下回背包"：需要能放下，背包满则拒绝。</summary>
+    public bool UnequipRightHand()
+    {
+        if (RightHand == null) return false;
+        if (AddItem(RightHand, 1) < 1) return false;   // 放不下（武器不可叠=需空格）
+        RightHand = null;
+        return true;
+    }
+
+    /// <summary>背包页"放入医疗栏"：只收医疗品，快捷栏须为空，整堆移入。</summary>
+    public bool MoveToMedSlotFrom(int index)
+    {
+        if (index < 0 || index >= slots.Count || MedSlot != null) return false;
+        var s = slots[index];
+        if (!ItemDatabase.Get(s.name).medical) return false;
+        MedSlot = s;
+        slots.RemoveAt(index);
+        return true;
+    }
+
+    /// <summary>医疗栏"取回背包"。</summary>
+    public bool TakeMedSlotBack()
+    {
+        if (MedSlot == null) return false;
+        int put = AddItem(MedSlot.name, MedSlot.count);
+        if (put <= 0) return false;
+        MedSlot.count -= put;
+        if (MedSlot.count <= 0) MedSlot = null;
+        return true;
+    }
+
+    /// <summary>斩杀线保命（由 Health 调用）：快捷栏非空 → 消耗1个，给出恢复值与名称。</summary>
+    public bool TryKillLineSave(out int restoreTo, out string itemName)
+    {
+        restoreTo = 0; itemName = null;
+        if (MedSlot == null) return false;
+        itemName = MedSlot.name;
+        restoreTo = ItemDatabase.Get(MedSlot.name).heal;
+        MedSlot.count--;
+        if (MedSlot.count <= 0) MedSlot = null;
+        return true;
+    }
+
+    void ConsumeAt(int index)
+    {
+        var s = slots[index];
+        s.count--;
+        if (s.count <= 0) slots.RemoveAt(index);
+    }
+
+    /// <summary>Console 格子视图。</summary>
     public string GridView()
     {
         var cells = new List<string>();
