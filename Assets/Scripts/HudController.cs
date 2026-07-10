@@ -17,8 +17,10 @@ public class HudController : MonoBehaviour
     Font font;
     Sprite white;
     LootWindow lootWindow;
+    InventoryWindow inventoryWindow;
 
     Text counterText;
+    Text weaponText;
     Text messageText;
     float messageTimer;
     GameObject progressRoot;
@@ -53,6 +55,11 @@ public class HudController : MonoBehaviour
         lootWindow = lwGO.AddComponent<LootWindow>();
         lootWindow.Init(font, white);
 
+        var iwGO = new GameObject("InventoryWindow");
+        iwGO.transform.SetParent(transform, false);
+        inventoryWindow = iwGO.AddComponent<InventoryWindow>();
+        inventoryWindow.Init(font, white);
+
         SceneManager.sceneLoaded += OnSceneLoaded;
         AcquireInventory();
     }
@@ -70,6 +77,7 @@ public class HudController : MonoBehaviour
         if (messageText != null) messageText.text = "";
         messageTimer = 0f;
         lootWindow?.Close();
+        inventoryWindow?.CloseIfOpen();   // 重开一局：关背包页并恢复 timeScale
     }
 
     void AcquireInventory()
@@ -86,6 +94,8 @@ public class HudController : MonoBehaviour
     {
         if (counterText != null)
             counterText.text = inventory != null ? $"背包 {inventory.Count}/{inventory.capacity} 格" : "背包 0/0 格";
+        if (weaponText != null)
+            weaponText.text = inventory != null ? $"右手: {inventory.RightHand ?? "空手"}" : "右手: 空手";
 
         if (messageTimer > 0f)
         {
@@ -143,6 +153,10 @@ public class HudController : MonoBehaviour
         // C 背包计数（右上角常驻）
         counterText = MakeText("Counter", new Vector2(1, 1), new Vector2(-20, -20), new Vector2(320, 50),
             new Vector2(1, 1), TextAnchor.UpperRight, 30);
+
+        // 闭环v1：右手武器名（背包计数下方）
+        weaponText = MakeText("Weapon", new Vector2(1, 1), new Vector2(-20, -64), new Vector2(320, 40),
+            new Vector2(1, 1), TextAnchor.UpperRight, 24);
 
         // B 结果/打断弹显（中部偏上，限时）
         messageText = MakeText("Message", new Vector2(0.5f, 0.5f), new Vector2(0, 140), new Vector2(1000, 220),

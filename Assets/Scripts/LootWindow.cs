@@ -88,11 +88,30 @@ public class LootWindow : MonoBehaviour
         {
             if (Contains(cellRect[i], screenPos))
             {
-                if (i < container.Contents.Count) { selected = i; RefreshInfo(); }  // 空格无反应
-                return;
+                if (i < container.Contents.Count)
+                {
+                    var kb = Keyboard.current;
+                    bool ctrl = kb != null && (kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed);
+                    bool doubleClick = i == lastClickIndex && Time.unscaledTime - lastClickTime <= 0.35f;
+                    lastClickIndex = i;
+                    lastClickTime = Time.unscaledTime;
+
+                    if (ctrl || doubleClick)   // 快拿：Ctrl+单击 或 双击 = 拿取该堆
+                    {
+                        selected = i;
+                        TakeSelected();
+                        return;
+                    }
+                    selected = i;
+                    RefreshInfo();
+                }
+                return;   // 空格无反应
             }
         }
     }
+
+    int lastClickIndex = -1;
+    float lastClickTime = -10f;
 
     void TakeSelected()
     {

@@ -11,6 +11,8 @@ public class PlayerInteraction : MonoBehaviour
 {
     void Update()
     {
+        if (Time.timeScale == 0f) return;   // 背包页暂停中不响应
+
         var kb = Keyboard.current;
         if (kb == null || !kb.eKey.wasPressedThisFrame) return;
 
