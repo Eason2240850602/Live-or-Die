@@ -130,6 +130,6 @@ MonoBehaviour:
   - itemName: "\u6025\u6551\u5305"
     weight: 15
   emptyChance: 0.1
-  twoItemChance: 0.3
+  twoItemChance: 0.45
   searchRange: 1.5
   searchDuration: 2.5

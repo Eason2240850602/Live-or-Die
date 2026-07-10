@@ -130,6 +130,6 @@ MonoBehaviour:
   - itemName: "\u5DE7\u514B\u529B"
     weight: 20
   emptyChance: 0.1
-  twoItemChance: 0.3
+  twoItemChance: 0.45
   searchRange: 1.5
   searchDuration: 2.5

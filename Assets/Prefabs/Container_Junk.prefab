@@ -132,6 +132,6 @@ MonoBehaviour:
   - itemName: "\u6728\u6750"
     weight: 25
   emptyChance: 0.1
-  twoItemChance: 0.3
+  twoItemChance: 0.45
   searchRange: 1.5
   searchDuration: 2.5

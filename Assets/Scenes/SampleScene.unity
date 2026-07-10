@@ -546,8 +546,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   target: {fileID: 1057639573}
   smoothTime: 0.15
-  lookAhead: 1
-  minX: 10
+  lookAhead: 0
+  minX: 8
   maxX: 140
 --- !u!81 &476004460
 AudioListener:
@@ -590,7 +590,7 @@ Camera:
     height: 1
   near clip plane: 0.3
   far clip plane: 1000
-  field of view: 54
+  field of view: 45
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
