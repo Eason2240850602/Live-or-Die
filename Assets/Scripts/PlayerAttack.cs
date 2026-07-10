@@ -27,6 +27,7 @@ public class PlayerAttack : MonoBehaviour
         {
             if (Vector3.Distance(transform.position, z.transform.position) <= attackRange)
             {
+                z.OnHit(transform.position);   // 打击手感v1b：闪白+微击退
                 var h = z.GetComponent<Health>();
                 if (h != null) h.TakeDamage(attackDamage);
             }

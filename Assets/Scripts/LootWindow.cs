@@ -176,11 +176,11 @@ public class LootWindow : MonoBehaviour
         infoText = MakeText("InfoTxt", irt, new Vector2(0.5f, 1), new Vector2(0.5f, 1),
             new Vector2(0, -14), new Vector2(272, 300), TextAnchor.UpperLeft, 22);
 
-        // 底部按钮
-        takeBtn    = MakeButton("拿取",    rootRT, new Vector2(0, 0), new Vector2(24, 22),  new Vector2(160, 54)).GetComponent<RectTransform>();
-        takeAllBtn = MakeButton("全部拿取", rootRT, new Vector2(0, 0), new Vector2(200, 22), new Vector2(160, 54)).GetComponent<RectTransform>();
-        closeBtn   = MakeButton("关闭(Esc)", rootRT, new Vector2(1, 0), new Vector2(-24, 22), new Vector2(160, 54)).GetComponent<RectTransform>();
-        closeBtn.pivot = new Vector2(1, 0);
+        // 底部按钮：一排，尺寸与文字匹配（高约为九宫格单格的 65%）
+        const float btnH = 78f;
+        takeBtn    = MakeButton("拿取",     rootRT, new Vector2(0, 0), new Vector2(0, 0), new Vector2(26, 20),   new Vector2(130, btnH));
+        takeAllBtn = MakeButton("全部拿取", rootRT, new Vector2(0, 0), new Vector2(0, 0), new Vector2(172, 20),  new Vector2(190, btnH));
+        closeBtn   = MakeButton("关闭",     rootRT, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-26, 20),  new Vector2(130, btnH));
     }
 
     GameObject MakePanel(string name, Transform parent, Vector2 aMin, Vector2 aMax, Vector2 pos, Vector2 size, Color col)
@@ -209,11 +209,14 @@ public class LootWindow : MonoBehaviour
         return txt;
     }
 
-    GameObject MakeButton(string label, Transform parent, Vector2 anchor, Vector2 pos, Vector2 size)
+    RectTransform MakeButton(string label, Transform parent, Vector2 anchor, Vector2 pivot, Vector2 pos, Vector2 size)
     {
         var go = MakePanel("Btn_" + label, parent, anchor, anchor, pos, size, new Color(0.3f, 0.35f, 0.45f, 0.98f));
-        MakeText("Label", go.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, size, TextAnchor.MiddleCenter, 24);
-        return go;
+        var rt = go.GetComponent<RectTransform>();
+        rt.pivot = pivot;                     // 先定好锚点/轴心再放文字，避免文字错位
+        var txt = MakeText("Label", rt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, new Vector2(size.x - 8, size.y - 8), TextAnchor.MiddleCenter, 26);
+        txt.horizontalOverflow = HorizontalWrapMode.Overflow;   // 中文不因换行被裁掉
+        return rt;
     }
 }

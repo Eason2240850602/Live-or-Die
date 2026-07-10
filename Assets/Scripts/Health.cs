@@ -45,7 +45,10 @@ public class Health : MonoBehaviour
         }
         else
         {
-            Destroy(gameObject);
+            // 打击手感v1b：丧尸不再瞬间消失，走 0.25 秒缩小；其余对象仍直接销毁
+            var zc = GetComponent<ZombieController>();
+            if (zc != null) zc.DieShrink();
+            else Destroy(gameObject);
         }
     }
 }

@@ -24,6 +24,13 @@ public class HudController : MonoBehaviour
     GameObject progressRoot;
     Image progressFill;
 
+    // 打击手感v1b：玩家受击红边框
+    Health playerHealth;
+    float lastHealth = -1f;
+    float hurtHold;                    // 掉血停止后的保持时间
+    readonly Image[] borders = new Image[4];
+    const float BorderAlpha = 0.5f;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Bootstrap()
     {
@@ -69,6 +76,10 @@ public class HudController : MonoBehaviour
     {
         var pm = Object.FindFirstObjectByType<PlayerMovement>();
         inventory = pm != null ? pm.GetComponent<Inventory>() : null;
+        playerHealth = pm != null ? pm.GetComponent<Health>() : null;
+        lastHealth = playerHealth != null ? playerHealth.Current : -1f;
+        hurtHold = 0f;
+        SetBorderAlpha(0f);
     }
 
     void Update()
@@ -81,6 +92,28 @@ public class HudController : MonoBehaviour
             messageTimer -= Time.deltaTime;
             if (messageTimer <= 0f && messageText != null) messageText.text = "";
         }
+
+        // 受击红边框：掉血期间亮起，停止掉血约 0.5 秒后淡出
+        if (playerHealth != null)
+        {
+            if (playerHealth.Current < lastHealth) hurtHold = 0.5f;
+            lastHealth = playerHealth.Current;
+        }
+        if (hurtHold > 0f)
+        {
+            hurtHold -= Time.deltaTime;
+            SetBorderAlpha(BorderAlpha);
+        }
+        else if (borders[0] != null && borders[0].color.a > 0f)
+        {
+            SetBorderAlpha(Mathf.MoveTowards(borders[0].color.a, 0f, Time.deltaTime * (BorderAlpha / 0.5f)));
+        }
+    }
+
+    void SetBorderAlpha(float a)
+    {
+        foreach (var b in borders)
+            if (b != null) b.color = new Color(0.85f, 0.1f, 0.1f, a);
     }
 
     // —— 供 Pickup 调用 ——
@@ -143,6 +176,26 @@ public class HudController : MonoBehaviour
         progressFill.fillAmount = 0f;
 
         progressRoot.SetActive(false);
+
+        // 受击红边框：四条纯色 Image 贴屏幕边缘，初始透明
+        borders[0] = MakeBorder("BorderTop",    new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -9),  new Vector2(0, 18));
+        borders[1] = MakeBorder("BorderBottom", new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 9),   new Vector2(0, 18));
+        borders[2] = MakeBorder("BorderLeft",   new Vector2(0, 0), new Vector2(0, 1), new Vector2(9, 0),   new Vector2(18, 0));
+        borders[3] = MakeBorder("BorderRight",  new Vector2(1, 0), new Vector2(1, 1), new Vector2(-9, 0),  new Vector2(18, 0));
+    }
+
+    Image MakeBorder(string name, Vector2 aMin, Vector2 aMax, Vector2 pos, Vector2 size)
+    {
+        var go = new GameObject(name);
+        var rt = go.AddComponent<RectTransform>();
+        rt.SetParent(transform, false);
+        rt.anchorMin = aMin; rt.anchorMax = aMax;
+        rt.anchoredPosition = pos; rt.sizeDelta = size;
+        var img = go.AddComponent<Image>();
+        img.sprite = white;
+        img.color = new Color(0.85f, 0.1f, 0.1f, 0f);
+        img.raycastTarget = false;
+        return img;
     }
 
     Text MakeText(string name, Vector2 anchor, Vector2 anchoredPos, Vector2 size, Vector2 pivot,

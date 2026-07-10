@@ -44,6 +44,9 @@ public class ZombieController : MonoBehaviour
     int facing;             // +1 朝右 / -1 朝左
     int patrolDir = 1;
     bool alerted;
+    bool dying;
+    Renderer rend;
+    Color baseColor;
 
     void Awake()
     {
@@ -56,11 +59,52 @@ public class ZombieController : MonoBehaviour
         originX = transform.position.x;
         facing = facingRight ? 1 : -1;
         patrolDir = facing;
+        rend = GetComponent<Renderer>();
+        if (rend != null) baseColor = rend.material.GetColor("_BaseColor");
+    }
+
+    /// <summary>打击手感v1b：被玩家命中——闪白约0.1秒 + 沿远离玩家方向微击退0.3单位。</summary>
+    public void OnHit(Vector3 attackerPos)
+    {
+        if (dying) return;
+        int away = transform.position.x >= attackerPos.x ? 1 : -1;
+        transform.position += new Vector3(away * 0.3f, 0f, 0f);
+        StopCoroutine(nameof(FlashWhite));
+        StartCoroutine(nameof(FlashWhite));
+    }
+
+    System.Collections.IEnumerator FlashWhite()
+    {
+        if (rend == null) yield break;
+        rend.material.SetColor("_BaseColor", Color.white);
+        yield return new WaitForSeconds(0.1f);
+        if (rend != null) rend.material.SetColor("_BaseColor", baseColor);
+    }
+
+    /// <summary>打击手感v1b：死亡反馈——0.25秒缩小至消失，期间不伤害不移动。由 Health 调用。</summary>
+    public void DieShrink()
+    {
+        if (dying) return;
+        dying = true;
+        StartCoroutine(ShrinkAndDestroy());
+    }
+
+    System.Collections.IEnumerator ShrinkAndDestroy()
+    {
+        Vector3 start = transform.localScale;
+        float t = 0f;
+        while (t < 0.25f)
+        {
+            transform.localScale = Vector3.Lerp(start, Vector3.zero, t / 0.25f);
+            t += Time.deltaTime;
+            yield return null;
+        }
+        Destroy(gameObject);
     }
 
     void Update()
     {
-        if (player == null) return;
+        if (dying || player == null) return;
 
         float dx = player.position.x - transform.position.x;
         float dist = Mathf.Abs(dx);
