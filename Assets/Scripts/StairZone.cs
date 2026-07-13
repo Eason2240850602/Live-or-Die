@@ -10,6 +10,11 @@ public class StairZone : MonoBehaviour
     public float xMin, xMax;
     public float bottomY, topY;   // 地面 Y（角色中心再 +1）
 
+    /// <summary>楼梯路径底端点（角色中心坐标）。攀爬=在两端点间插值。</summary>
+    public Vector2 BottomPoint => new Vector2(xMin + 0.3f, bottomY + 1f);
+    /// <summary>楼梯路径顶端点（角色中心坐标）。</summary>
+    public Vector2 TopPoint => new Vector2(xMax - 0.1f, topY + 1f);
+
     static readonly List<StairZone> all = new List<StairZone>();
 
     void OnEnable() { all.Add(this); }

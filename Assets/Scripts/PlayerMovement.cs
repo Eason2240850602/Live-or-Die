@@ -25,6 +25,8 @@ public class PlayerMovement : MonoBehaviour
     public bool IsSneaking { get; private set; }
 
     float baseScaleY = -1f;
+    StairZone climbing;   // 非空 = 攀爬中（吸附路径线）
+    float climbT;         // 0=底端点 1=顶端点
 
     void Awake() { baseScaleY = transform.localScale.y; }
 
@@ -39,33 +41,67 @@ public class PlayerMovement : MonoBehaviour
         if (!Mathf.Approximately(transform.localScale.y, targetY))
             transform.localScale = new Vector3(transform.localScale.x, targetY, transform.localScale.z);
 
+        // —— 攀爬状态：吸附楼梯路径线，只沿梯轴动，横向输入无效；只在两端脱离 ——
+        if (climbing != null) { ClimbUpdate(kb); return; }
+
         float x = 0f;
         if (kb.aKey.isPressed || kb.leftArrowKey.isPressed)  x -= 1f;
         if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) x += 1f;
         if (x != 0f) Facing = x > 0f ? 1 : -1;
 
-        // —— 楼梯：区域内 W/S 上下 ——
-        float y = transform.position.y;
+        float speed = IsSneaking ? sneakSpeed : moveSpeed;
+        float newX = transform.position.x + x * speed * Time.deltaTime;
+        newX = Blocker.ClampMove(transform.position.x, newX, transform.position.y);
+        transform.position = new Vector3(newX, transform.position.y, transform.position.z);
+
+        // —— 进入楼梯：底层按 W(上) / 顶层按 S(下)，吸附到对应端点 ——
         var zone = StairZone.At(transform.position.x);
         if (zone != null)
         {
-            float vy = 0f;
-            if (kb.wKey.isPressed || kb.upArrowKey.isPressed)   vy += 1f;
-            if (kb.sKey.isPressed || kb.downArrowKey.isPressed) vy -= 1f;
-            if (vy != 0f)
-                y = Mathf.Clamp(y + vy * stairSpeed * Time.deltaTime, zone.bottomY + 1f, zone.topY + 1f);
+            float y = transform.position.y;
+            bool atBottom = Mathf.Abs(y - (zone.bottomY + 1f)) < 0.1f;
+            bool atTop    = Mathf.Abs(y - (zone.topY + 1f)) < 0.1f;
+            bool up   = kb.wKey.isPressed || kb.upArrowKey.isPressed;
+            bool down = kb.sKey.isPressed || kb.downArrowKey.isPressed;
+
+            if (atBottom && up)   BeginClimb(zone, 0f);
+            else if (atTop && down) BeginClimb(zone, 1f);
+        }
+    }
+
+    void BeginClimb(StairZone zone, float t)
+    {
+        climbing = zone;
+        climbT = t;
+        SnapToPath();
+    }
+
+    void ClimbUpdate(Keyboard kb)
+    {
+        float v = 0f;
+        if (kb.wKey.isPressed || kb.upArrowKey.isPressed)   v += 1f;
+        if (kb.sKey.isPressed || kb.downArrowKey.isPressed) v -= 1f;
+
+        if (v != 0f)
+        {
+            float len = Vector2.Distance(climbing.BottomPoint, climbing.TopPoint);
+            climbT += v * stairSpeed * Time.deltaTime / Mathf.Max(len, 0.01f);
         }
 
-        // —— 水平移动：阻挡截停；楼梯中段不许横出 ——
-        float speed = IsSneaking ? sneakSpeed : moveSpeed;
-        float newX = transform.position.x + x * speed * Time.deltaTime;
-        newX = Blocker.ClampMove(transform.position.x, newX, y);
+        if (climbT <= 0f)      { ExitClimb(climbing.BottomPoint); return; }
+        if (climbT >= 1f)      { ExitClimb(climbing.TopPoint); return; }
+        SnapToPath();
+    }
 
-        bool midStairs = zone != null
-            && Mathf.Abs(y - (zone.bottomY + 1f)) > 0.05f
-            && Mathf.Abs(y - (zone.topY + 1f)) > 0.05f;
-        if (midStairs) newX = Mathf.Clamp(newX, zone.xMin, zone.xMax);
+    void SnapToPath()
+    {
+        Vector2 p = Vector2.Lerp(climbing.BottomPoint, climbing.TopPoint, climbT);
+        transform.position = new Vector3(p.x, p.y, transform.position.z);
+    }
 
-        transform.position = new Vector3(newX, y, transform.position.z);
+    void ExitClimb(Vector2 at)
+    {
+        transform.position = new Vector3(at.x, at.y, transform.position.z);
+        climbing = null;
     }
 }
