@@ -40,6 +40,9 @@ public class ZombieController : MonoBehaviour
     [Tooltip("受击硬直时长")]
     public float staggerTime = 0.25f;
 
+    [Tooltip("可被无声处决（精英/防弹尸设 false）")]
+    public bool canBeExecuted = true;
+
     Transform player;
     Health playerHealth;
     PlayerMovement playerMove;
@@ -62,10 +65,34 @@ public class ZombieController : MonoBehaviour
     float soundWait;
     bool returning;
 
-    /// <summary>听到声音（NoiseSystem 调用）：取得声源坐标并追击。已锁定/垂死不响应。返回是否被惊动。</summary>
+    // —— 感知v1段3：无声处决 ——
+    /// <summary>朝向（只读）：+1 右 / -1 左。处决的"背后"判定用。</summary>
+    public int FacingDir => facing;
+    /// <summary>垂死中（只读）。</summary>
+    public bool IsDying => dying;
+    /// <summary>被处决中（挣扎抖动，冻结 AI）。</summary>
+    public bool BeingExecuted { get; private set; }
+
+    public void StartExecuted()
+    {
+        BeingExecuted = true;
+        CancelWindup();          // 零红条
+        staggerTimer = 0f;
+    }
+
+    public void CancelExecuted() { BeingExecuted = false; }
+
+    /// <summary>处决完成：无声即死（缩小消失）。</summary>
+    public void ExecuteKill()
+    {
+        BeingExecuted = false;
+        DieShrink();
+    }
+
+    /// <summary>听到声音（NoiseSystem 调用）：取得声源坐标并追击。已锁定/垂死/被处决不响应。返回是否被惊动。</summary>
     public bool HearNoise(Vector3 pos)
     {
-        if (dying || alerted) return false;
+        if (dying || alerted || BeingExecuted) return false;
         soundChasing = true;
         soundTarget = pos;
         soundWait = 0f;
@@ -137,6 +164,13 @@ public class ZombieController : MonoBehaviour
     void Update()
     {
         if (dying || player == null) return;
+
+        if (BeingExecuted)   // 被处决中：挣扎抖动，冻结移动/攻击/感知
+        {
+            float jx = Mathf.Sin(Time.time * 40f) * 0.03f;
+            transform.position = new Vector3(transform.position.x + jx, transform.position.y, transform.position.z);
+            return;
+        }
 
         float dx = player.position.x - transform.position.x;
         float dist = Mathf.Abs(dx);

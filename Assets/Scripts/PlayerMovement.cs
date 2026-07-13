@@ -38,6 +38,9 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>跑步中（只读）：声音分级用。</summary>
     public bool IsRunning { get; private set; }
 
+    /// <summary>移动锁定（处决动作期间由 PlayerExecution 设置）。</summary>
+    public bool Locked { get; set; }
+
     float baseScaleY = -1f;
     StairZone climbing;   // 非空 = 攀爬中（吸附路径线）
     float climbT;         // 0=底端点 1=顶端点
@@ -49,7 +52,7 @@ public class PlayerMovement : MonoBehaviour
     void Update()
     {
         var kb = Keyboard.current;
-        if (kb == null) return;
+        if (kb == null || Locked) return;
 
         // —— 移动三态：C 切换蹲/走；双击方向 = 跑(按住维持)；蹲下双击 = 先起身再跑 ——
         if (kb.cKey.wasPressedThisFrame)

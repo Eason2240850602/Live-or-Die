@@ -11,12 +11,14 @@ public class PlayerAttack : MonoBehaviour
     public float attackRange = 2f;
 
     Inventory inventory;
+    PlayerMovement pm;
 
-    void Awake() { inventory = GetComponent<Inventory>(); }
+    void Awake() { inventory = GetComponent<Inventory>(); pm = GetComponent<PlayerMovement>(); }
 
     void Update()
     {
-        if (Time.timeScale == 0f) return;   // 背包页暂停中：点 UI 不挥击
+        if (Time.timeScale == 0f) return;               // 背包页暂停中：点 UI 不挥击
+        if (pm != null && pm.Locked) return;            // 处决动作中不挥击
 
         var kb = Keyboard.current;
         var mouse = Mouse.current;

@@ -140,6 +140,20 @@ public class HudController : MonoBehaviour
 
     public void OpenLootWindow(Pickup container) => lootWindow?.Open(container);
 
+    Text executeHint;
+    /// <summary>感知v1段3："F 处决"小提示（条件满足才显示）。</summary>
+    public void SetExecuteHint(bool show)
+    {
+        if (executeHint == null)
+        {
+            executeHint = MakeText("ExecuteHint", new Vector2(0.5f, 0f), new Vector2(0, 170), new Vector2(300, 40),
+                new Vector2(0.5f, 0f), TextAnchor.MiddleCenter, 26);
+            executeHint.text = "F 处决";
+            executeHint.color = new Color(1f, 0.9f, 0.4f, 1f);
+        }
+        if (executeHint.gameObject.activeSelf != show) executeHint.gameObject.SetActive(show);
+    }
+
     void BuildUI()
     {
         var canvas = gameObject.AddComponent<Canvas>();
