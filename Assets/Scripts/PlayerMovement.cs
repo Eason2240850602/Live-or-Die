@@ -9,11 +9,17 @@ using UnityEngine.InputSystem;
 /// </summary>
 public class PlayerMovement : MonoBehaviour
 {
-    [Tooltip("移动速度（世界单位/秒）")]
+    [Tooltip("走路速度（世界单位/秒）")]
     public float moveSpeed = 5f;
 
-    [Tooltip("静步速度（按住 Ctrl）")]
+    [Tooltip("蹲行速度（C 键切换蹲/走）")]
     public float sneakSpeed = 2.5f;
+
+    [Tooltip("跑步速度（双击方向键触发，按住维持）")]
+    public float runSpeed = 7f;
+
+    [Tooltip("双击判定间隔（秒）")]
+    public float doubleTapWindow = 0.3f;
 
     [Tooltip("楼梯攀爬速度（单位/秒）")]
     public float stairSpeed = 3.5f;
@@ -21,12 +27,17 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>朝向（只读）：+1 右 / -1 左。</summary>
     public int Facing { get; private set; } = 1;
 
-    /// <summary>静步中（只读）。</summary>
+    /// <summary>蹲行中（只读）：丧尸视野减半/暗杀条件用。</summary>
     public bool IsSneaking { get; private set; }
+
+    /// <summary>跑步中（只读）：声音分级用。</summary>
+    public bool IsRunning { get; private set; }
 
     float baseScaleY = -1f;
     StairZone climbing;   // 非空 = 攀爬中（吸附路径线）
     float climbT;         // 0=底端点 1=顶端点
+    int lastTapDir;       // 双击跑检测
+    float lastTapTime = -10f;
 
     void Awake() { baseScaleY = transform.localScale.y; }
 
@@ -35,7 +46,31 @@ public class PlayerMovement : MonoBehaviour
         var kb = Keyboard.current;
         if (kb == null) return;
 
-        IsSneaking = kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed;
+        // —— 移动三态：C 切换蹲/走；双击方向 = 跑(按住维持)；蹲下双击 = 先起身再跑 ——
+        if (kb.cKey.wasPressedThisFrame)
+        {
+            IsSneaking = !IsSneaking;
+            if (IsSneaking) IsRunning = false;
+        }
+
+        bool leftHeld  = kb.aKey.isPressed || kb.leftArrowKey.isPressed;
+        bool rightHeld = kb.dKey.isPressed || kb.rightArrowKey.isPressed;
+        bool leftTap   = kb.aKey.wasPressedThisFrame || kb.leftArrowKey.wasPressedThisFrame;
+        bool rightTap  = kb.dKey.wasPressedThisFrame || kb.rightArrowKey.wasPressedThisFrame;
+
+        if (leftTap || rightTap)
+        {
+            int dir = rightTap ? 1 : -1;
+            if (dir == lastTapDir && Time.time - lastTapTime <= doubleTapWindow)
+            {
+                IsRunning = true;
+                IsSneaking = false;   // 蹲下双击方向：先起身再跑
+            }
+            lastTapDir = dir;
+            lastTapTime = Time.time;
+        }
+        if (IsRunning && !((lastTapDir > 0 && rightHeld) || (lastTapDir < 0 && leftHeld)))
+            IsRunning = false;        // 松开方向键 → 回走路
 
         float targetY = IsSneaking ? baseScaleY * 0.9f : baseScaleY;
         if (!Mathf.Approximately(transform.localScale.y, targetY))
@@ -45,11 +80,11 @@ public class PlayerMovement : MonoBehaviour
         if (climbing != null) { ClimbUpdate(kb); return; }
 
         float x = 0f;
-        if (kb.aKey.isPressed || kb.leftArrowKey.isPressed)  x -= 1f;
-        if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) x += 1f;
+        if (leftHeld)  x -= 1f;
+        if (rightHeld) x += 1f;
         if (x != 0f) Facing = x > 0f ? 1 : -1;
 
-        float speed = IsSneaking ? sneakSpeed : moveSpeed;
+        float speed = IsSneaking ? sneakSpeed : (IsRunning ? runSpeed : moveSpeed);
         float newX = transform.position.x + x * speed * Time.deltaTime;
         newX = Blocker.ClampMove(transform.position.x, newX, transform.position.y);
         transform.position = new Vector3(newX, transform.position.y, transform.position.z);
