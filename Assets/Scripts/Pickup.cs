@@ -119,7 +119,12 @@ public class Pickup : MonoBehaviour
     {
         if (index < 0 || index >= contents.Count) return;
         var s = contents[index];
-        if (inventory != null) s.count -= inventory.AddItem(s.name, s.count);
+        if (inventory != null)
+        {
+            int got = inventory.AcquireItem(s.name, s.count);   // UX1：武器右手空则直接上手
+            s.count -= got;
+            if (got == 0) HudController.Instance?.ShowMessage("背包已满", 1.5f);
+        }
         contents.RemoveAll(x => x.count <= 0);
         if (inventory != null) Debug.Log(inventory.GridView());
         CheckConsumed();
@@ -129,8 +134,15 @@ public class Pickup : MonoBehaviour
     {
         if (inventory != null)
         {
-            foreach (var s in contents) s.count -= inventory.AddItem(s.name, s.count);
+            int gotTotal = 0;
+            foreach (var s in contents)
+            {
+                int got = inventory.AcquireItem(s.name, s.count);   // UX1
+                s.count -= got;
+                gotTotal += got;
+            }
             contents.RemoveAll(x => x.count <= 0);
+            if (gotTotal == 0 && contents.Count > 0) HudController.Instance?.ShowMessage("背包已满", 1.5f);
             Debug.Log(inventory.GridView());
         }
         CheckConsumed();

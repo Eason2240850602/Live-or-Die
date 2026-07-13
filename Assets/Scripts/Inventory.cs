@@ -9,7 +9,7 @@ using UnityEngine;
 public class Inventory : MonoBehaviour
 {
     [Tooltip("背包格数上限")]
-    public int capacity = 5;
+    public int capacity = 6;
 
     readonly List<ItemStack> slots = new List<ItemStack>();
 
@@ -24,6 +24,21 @@ public class Inventory : MonoBehaviour
 
     /// <summary>当前攻击伤害：空手25，持武器用武器伤害。</summary>
     public int AttackDamage => RightHand == null ? 25 : ItemDatabase.Get(RightHand).damage;
+
+    /// <summary>
+    /// UX1 获取物品（开箱拿取路径）：武器且右手空 → 直接上手（背包满也生效，修"满包捡不了撬棍"死局）；
+    /// 右手已占 → 走背包；其余物品照旧 AddItem。已装备武器永不被自动替换。返回实际收下数量。
+    /// </summary>
+    public int AcquireItem(string name, int qty)
+    {
+        int taken = 0;
+        if (qty > 0 && ItemDatabase.Get(name).weapon && RightHand == null)
+        {
+            RightHand = name;
+            qty--; taken++;
+        }
+        return taken + AddItem(name, qty);
+    }
 
     /// <summary>装入 qty 个 name；返回实际装入数量。</summary>
     public int AddItem(string name, int qty)

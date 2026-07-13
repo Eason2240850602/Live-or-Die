@@ -17,9 +17,12 @@ public class InventoryWindow : MonoBehaviour
 
     GameObject root;
     Text infoText, statusText;
-    readonly Text[] bagText = new Text[5];
-    readonly Image[] bagBg = new Image[5];
-    readonly RectTransform[] bagRect = new RectTransform[5];
+    const int BagCells = 6;
+    readonly Text[] bagText = new Text[BagCells];
+    readonly Image[] bagBg = new Image[BagCells];
+    readonly RectTransform[] bagRect = new RectTransform[BagCells];
+    int lastBagClick = -1;
+    float lastBagClickTime = -10f;
     Text rightHandText, medSlotText, leftHandText;
     Image rightHandBg, medSlotBg;
     RectTransform rightHandRect, medSlotRect;
@@ -93,10 +96,25 @@ public class InventoryWindow : MonoBehaviour
         if (btnARect.gameObject.activeSelf && Contains(btnARect, pos)) { DoAction(btnAText.text); return; }
         if (btnBRect.gameObject.activeSelf && Contains(btnBRect, pos)) { DoAction(btnBText.text); return; }
 
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < BagCells; i++)
             if (Contains(bagRect[i], pos))
             {
-                if (i < inventory.Slots.Count) { selKind = Sel.Bag; selIndex = i; Refresh(); }
+                if (i < inventory.Slots.Count)
+                {
+                    // UX1：双击格中武器 = 装备(右手空) / 提示(右手已占)。不做自动顶替。
+                    bool dbl = i == lastBagClick && Time.unscaledTime - lastBagClickTime <= 0.35f;
+                    lastBagClick = i;
+                    lastBagClickTime = Time.unscaledTime;
+
+                    if (dbl && ItemDatabase.Get(inventory.Slots[i].name).weapon)
+                    {
+                        if (inventory.RightHand != null) statusText.text = "右手已有武器，先卸下";
+                        else if (inventory.EquipRightHandFrom(i)) { selKind = Sel.None; selIndex = -1; }
+                        Refresh();
+                        return;
+                    }
+                    selKind = Sel.Bag; selIndex = i; Refresh();
+                }
                 return;
             }
         if (Contains(rightHandRect, pos)) { if (inventory.RightHand != null) { selKind = Sel.RightHand; Refresh(); } return; }
@@ -140,7 +158,7 @@ public class InventoryWindow : MonoBehaviour
     void Refresh()
     {
         var slots = inventory.Slots;
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < BagCells; i++)
         {
             bool has = i < slots.Count;
             bagText[i].text = has ? (slots[i].count > 1 ? $"{slots[i].name}\nx{slots[i].count}" : slots[i].name) : "";
@@ -197,19 +215,21 @@ public class InventoryWindow : MonoBehaviour
     // ———————— UI 构建（占位纯色，复用 LootWindow 手法） ————————
     void BuildUI()
     {
-        root = Panel("Root", transform, new Vector2(0.5f, 0.5f), new Vector2(0, 0), new Vector2(920, 560),
+        root = Panel("Root", transform, new Vector2(0.5f, 0.5f), new Vector2(0, 0), new Vector2(920, 640),
             new Color(0.08f, 0.08f, 0.10f, 0.94f), new Vector2(0.5f, 0.5f));
         var rootRT = root.GetComponent<RectTransform>();
 
         TextAt("Title", rootRT, new Vector2(0.5f, 1), new Vector2(0, -16), new Vector2(880, 44),
             TextAnchor.MiddleCenter, 30).text = "背包（游戏已暂停）";
 
-        // 5 背包格（上排）
+        // 6 背包格（两行三列）
         const float cell = 120f, gap = 14f;
         float startX = 40f;
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < BagCells; i++)
         {
-            var c = Panel($"Bag{i}", rootRT, new Vector2(0, 1), new Vector2(startX + i * (cell + gap), -80f),
+            int col = i % 3, row = i / 3;
+            var c = Panel($"Bag{i}", rootRT, new Vector2(0, 1),
+                new Vector2(startX + col * (cell + gap), -80f - row * (cell + gap)),
                 new Vector2(cell, cell), new Color(0.25f, 0.28f, 0.35f, 0.95f), new Vector2(0, 1));
             bagRect[i] = c.GetComponent<RectTransform>();
             bagBg[i] = c.GetComponent<Image>();
@@ -218,7 +238,7 @@ public class InventoryWindow : MonoBehaviour
         }
 
         // 装备排（下排）：左手(禁用) / 右手 / 医疗栏
-        float eqY = -240f;
+        float eqY = -80f - 2 * (cell + gap);
         var lh = Panel("LeftHand", rootRT, new Vector2(0, 1), new Vector2(40f, eqY),
             new Vector2(cell, cell), new Color(0.13f, 0.13f, 0.16f, 0.8f), new Vector2(0, 1));
         leftHandText = TextAt("LeftTxt", lh.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), Vector2.zero,
