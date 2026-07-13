@@ -185,7 +185,8 @@ public class ZombieController : MonoBehaviour
             float effectiveSight = (playerMove != null && playerMove.IsSneaking) ? sightRange * 0.5f : sightRange;
             bool inFront = Mathf.Sign(dx) == facing;
             bool lineBlocked = Blocker.BlocksLine(transform.position.x, player.position.x, transform.position.y);
-            if (sameFloor && !lineBlocked && ((inFront && dist <= effectiveSight) || dist <= backSenseRange))
+            if (!PlayerInteraction.IsPeeking   // 偷窥期间无论朝向/距离都无法发现
+                && sameFloor && !lineBlocked && ((inFront && dist <= effectiveSight) || dist <= backSenseRange))
             {
                 alerted = true;
                 soundChasing = false; returning = false;
