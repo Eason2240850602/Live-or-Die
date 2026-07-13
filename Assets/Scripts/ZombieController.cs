@@ -124,11 +124,15 @@ public class ZombieController : MonoBehaviour
         float dx = player.position.x - transform.position.x;
         float dist = Mathf.Abs(dx);
 
+        // 研究所灰盒：跨层不感知/不追打（丧尸不用楼梯）；层高7,同层判定阈值3
+        bool sameFloor = Mathf.Abs(player.position.y - transform.position.y) < 3f;
+        if (alerted && !sameFloor) return;   // 已发现但玩家上/下楼 → 原地等待
+
         if (!alerted)
         {
             float effectiveSight = (playerMove != null && playerMove.IsSneaking) ? sightRange * 0.5f : sightRange;
             bool inFront = Mathf.Sign(dx) == facing;
-            if ((inFront && dist <= effectiveSight) || dist <= backSenseRange)
+            if (sameFloor && ((inFront && dist <= effectiveSight) || dist <= backSenseRange))
             {
                 alerted = true;
                 Debug.Log("丧尸发现了你!");
@@ -139,6 +143,7 @@ public class ZombieController : MonoBehaviour
                 float x = transform.position.x + patrolDir * moveSpeed * Time.deltaTime;
                 if (x > originX + half) { x = originX + half; patrolDir = -1; }
                 else if (x < originX - half) { x = originX - half; patrolDir = 1; }
+                x = Blocker.ClampMove(transform.position.x, x, transform.position.y);   // 撞墙截停
                 facing = patrolDir;
                 transform.position = new Vector3(x, transform.position.y, transform.position.z);
             }
@@ -184,7 +189,9 @@ public class ZombieController : MonoBehaviour
                 {
                     int dir = (int)Mathf.Sign(dx);
                     facing = dir;
-                    transform.position += new Vector3(dir, 0f, 0f) * moveSpeed * Time.deltaTime;
+                    float nx = transform.position.x + dir * moveSpeed * Time.deltaTime;
+                    nx = Blocker.ClampMove(transform.position.x, nx, transform.position.y);   // 撞墙截停
+                    transform.position = new Vector3(nx, transform.position.y, transform.position.z);
                 }
                 break;
         }
