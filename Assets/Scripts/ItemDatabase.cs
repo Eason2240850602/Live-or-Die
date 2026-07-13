@@ -15,6 +15,7 @@ public static class ItemDatabase
         public bool medical;    // 可放入医疗快捷栏（绷带/急救包）
         public bool weapon;     // 可装备到手槽
         public int damage;      // 武器伤害（装备后替代空手25）
+        public float noiseRadius;   // 挥击声音半径（感知v1；空手默认4）
     }
 
     static readonly Dictionary<string, Def> table = new Dictionary<string, Def>
@@ -31,7 +32,7 @@ public static class ItemDatabase
         { "零件",   new Def { stackMax = 5,  groupSize = 1, desc = "螺丝、弹簧和叫不上名字的金属件。" } },
         { "木材",   new Def { stackMax = 5,  groupSize = 5, desc = "一捆木板，加固或生火都用得上。" } },
         { "手枪弹药", new Def { stackMax = 20, groupSize = 5, desc = "9mm，每一发都要省着用。" } },
-        { "撬棍",   new Def { stackMax = 1,  groupSize = 1, weapon = true, damage = 50, desc = "能开门，也能开颅。可靠的老朋友。" } },
+        { "撬棍",   new Def { stackMax = 1,  groupSize = 1, weapon = true, damage = 50, noiseRadius = 6f, desc = "能开门，也能开颅。可靠的老朋友。" } },
     };
 
     public static Def Get(string name) { table.TryGetValue(name, out var d); return d; }

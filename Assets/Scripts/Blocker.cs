@@ -16,6 +16,18 @@ public class Blocker : MonoBehaviour
     void OnEnable() { all.Add(this); }
     void OnDisable() { all.Remove(this); }
 
+    /// <summary>视线遮挡（感知v1）：x1↔x2 的视线在眼高 eyeY 处是否被任一阻挡体截断。纯数学，不用物理。</summary>
+    public static bool BlocksLine(float x1, float x2, float eyeY)
+    {
+        float lo = Mathf.Min(x1, x2), hi = Mathf.Max(x1, x2);
+        foreach (var b in all)
+        {
+            if (eyeY < b.yMin || eyeY > b.yMax) continue;
+            if (b.xMax > lo && b.xMin < hi) return true;   // 阻挡体横在两者之间
+        }
+        return false;
+    }
+
     /// <summary>从 fromX 移到 toX（角色中心在 centerY）：被阻挡则截停在阻挡边缘。</summary>
     public static float ClampMove(float fromX, float toX, float centerY)
     {

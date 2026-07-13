@@ -24,6 +24,11 @@ public class PlayerMovement : MonoBehaviour
     [Tooltip("楼梯攀爬速度（单位/秒）")]
     public float stairSpeed = 3.5f;
 
+    [Header("声音半径（蹲行=0 不发声）")]
+    public float walkNoise = 3f;
+    public float runNoise = 8f;
+    public float noisePulseInterval = 0.5f;
+
     /// <summary>朝向（只读）：+1 右 / -1 左。</summary>
     public int Facing { get; private set; } = 1;
 
@@ -88,6 +93,7 @@ public class PlayerMovement : MonoBehaviour
         float newX = transform.position.x + x * speed * Time.deltaTime;
         newX = Blocker.ClampMove(transform.position.x, newX, transform.position.y);
         transform.position = new Vector3(newX, transform.position.y, transform.position.z);
+        EmitMovePulse(x != 0f);
 
         // —— 进入楼梯：底层按 W(上) / 顶层按 S(下)，吸附到对应端点 ——
         var zone = StairZone.At(transform.position.x);
@@ -126,6 +132,20 @@ public class PlayerMovement : MonoBehaviour
         if (climbT <= 0f)      { ExitClimb(climbing.BottomPoint); return; }
         if (climbT >= 1f)      { ExitClimb(climbing.TopPoint); return; }
         SnapToPath();
+        EmitMovePulse(v != 0f);
+    }
+
+    // 移动声音脉冲：蹲行 0 / 走路 3 / 跑步 8
+    float noiseTimer;
+    void EmitMovePulse(bool moved)
+    {
+        if (!moved || IsSneaking) { noiseTimer = 0f; return; }
+        noiseTimer += Time.deltaTime;
+        if (noiseTimer >= noisePulseInterval)
+        {
+            noiseTimer = 0f;
+            NoiseSystem.Emit(transform.position, IsRunning ? runNoise : walkNoise, IsRunning ? "跑步" : "走路");
+        }
     }
 
     void SnapToPath()

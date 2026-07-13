@@ -56,6 +56,23 @@ public class ZombieController : MonoBehaviour
     float atkTimer;
     float staggerTimer;
 
+    // 感知v1：声音追击（仅坐标，非锁定）
+    bool soundChasing;
+    Vector3 soundTarget;
+    float soundWait;
+    bool returning;
+
+    /// <summary>听到声音（NoiseSystem 调用）：取得声源坐标并追击。已锁定/垂死不响应。返回是否被惊动。</summary>
+    public bool HearNoise(Vector3 pos)
+    {
+        if (dying || alerted) return false;
+        soundChasing = true;
+        soundTarget = pos;
+        soundWait = 0f;
+        returning = false;
+        return true;
+    }
+
     GameObject barRoot;
     Image barFill;
 
@@ -130,12 +147,51 @@ public class ZombieController : MonoBehaviour
 
         if (!alerted)
         {
+            // 视觉发现（永久锁定）：同层 + 视线未被隔墙/关门截断 + 正面视距(蹲行减半)或背后贴脸
             float effectiveSight = (playerMove != null && playerMove.IsSneaking) ? sightRange * 0.5f : sightRange;
             bool inFront = Mathf.Sign(dx) == facing;
-            if (sameFloor && ((inFront && dist <= effectiveSight) || dist <= backSenseRange))
+            bool lineBlocked = Blocker.BlocksLine(transform.position.x, player.position.x, transform.position.y);
+            if (sameFloor && !lineBlocked && ((inFront && dist <= effectiveSight) || dist <= backSenseRange))
             {
                 alerted = true;
+                soundChasing = false; returning = false;
                 Debug.Log("丧尸发现了你!");
+            }
+            else if (soundChasing)
+            {
+                // 声音给坐标：扑向最后听到的位置；到达(或被墙截停)后停约2秒 → 脱战返回
+                float sdx = soundTarget.x - transform.position.x;
+                if (Mathf.Abs(sdx) > 0.5f)
+                {
+                    int dir = (int)Mathf.Sign(sdx);
+                    facing = dir;
+                    float nx = transform.position.x + dir * moveSpeed * Time.deltaTime;
+                    nx = Blocker.ClampMove(transform.position.x, nx, transform.position.y);
+                    bool stuck = Mathf.Approximately(nx, transform.position.x);
+                    transform.position = new Vector3(nx, transform.position.y, transform.position.z);
+                    if (stuck) soundWait += Time.deltaTime;   // 被墙挡住也按到达处理
+                    else soundWait = 0f;
+                }
+                else soundWait += Time.deltaTime;
+                if (soundWait >= 2f) { soundChasing = false; returning = true; }
+            }
+            else if (returning)
+            {
+                // 回原岗
+                float rdx = originX - transform.position.x;
+                if (Mathf.Abs(rdx) > 0.3f)
+                {
+                    int dir = (int)Mathf.Sign(rdx);
+                    facing = dir;
+                    float nx = transform.position.x + dir * moveSpeed * Time.deltaTime;
+                    nx = Blocker.ClampMove(transform.position.x, nx, transform.position.y);
+                    transform.position = new Vector3(nx, transform.position.y, transform.position.z);
+                }
+                else
+                {
+                    returning = false;
+                    if (mode == Mode.Standing) facing = facingRight ? 1 : -1;   // 站桩恢复原朝向
+                }
             }
             else if (mode == Mode.Patrol)
             {

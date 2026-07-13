@@ -25,6 +25,16 @@ public class PlayerAttack : MonoBehaviour
         if (!pressed) return;
 
         int damage = inventory != null ? inventory.AttackDamage : 25;
+
+        // 感知v1：挥击有声音——空手 4，武器用表内 noiseRadius(撬棍 6)
+        float noise = 4f;
+        if (inventory != null && inventory.RightHand != null)
+        {
+            float nr = ItemDatabase.Get(inventory.RightHand).noiseRadius;
+            if (nr > 0f) noise = nr;
+        }
+        NoiseSystem.Emit(transform.position, noise, "挥击");
+
         var zombies = Object.FindObjectsByType<ZombieController>(FindObjectsSortMode.None);
         foreach (var z in zombies)
         {

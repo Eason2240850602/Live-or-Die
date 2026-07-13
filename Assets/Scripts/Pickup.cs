@@ -29,6 +29,9 @@ public class Pickup : MonoBehaviour
     public float searchRange = 1.5f;
     public float searchDuration = 2.5f;
 
+    [Tooltip("搜刮声音半径（等待期每秒脉冲一次）")]
+    public float searchNoiseRadius = 4f;
+
     public bool IsSearching { get; private set; }
     public bool Searched { get; private set; }
 
@@ -73,11 +76,14 @@ public class Pickup : MonoBehaviour
 
         float startHealth = playerHealth != null ? playerHealth.Current : float.MaxValue;
         float t = 0f;
+        float noiseT = 0f;
         while (t < searchDuration)
         {
             if (!InRange()) { Interrupt("搜刮被打断(离开范围)"); yield break; }
             if (playerHealth != null && playerHealth.Current < startHealth) { Interrupt("搜刮被打断(受到攻击)"); yield break; }
             HudController.Instance?.SetProgress(t / searchDuration);
+            noiseT += Time.deltaTime;                       // 搜刮有声音：每秒脉冲
+            if (noiseT >= 1f) { noiseT = 0f; NoiseSystem.Emit(transform.position, searchNoiseRadius, "搜刮"); }
             t += Time.deltaTime;
             yield return null;
         }
