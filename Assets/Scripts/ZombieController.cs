@@ -26,7 +26,15 @@ public class ZombieController : MonoBehaviour
     public float backSenseRange = 1.5f;
 
     [Header("移动")]
+    [Tooltip("追击速度（视觉锁定/声音扑向），不受巡逻减速影响")]
     public float moveSpeed = 2.2f;
+
+    [Tooltip("巡逻/回岗速度（潜行窗口：慢，给尾行机会）")]
+    public float patrolSpeed = 1.2f;
+
+    [Tooltip("端点驻足时长范围（秒），驻足结束才掉头")]
+    public float dwellMin = 5f;
+    public float dwellMax = 8f;
 
     [Header("攻击（前摇制）")]
     [Tooltip("攻击范围：与玩家的 X 距离小于它就开始抬手")]
@@ -58,6 +66,8 @@ public class ZombieController : MonoBehaviour
     AtkState atk = AtkState.None;
     float atkTimer;
     float staggerTimer;
+
+    float dwellTimer;   // >0 = 端点驻足中
 
     // 感知v1：声音追击（仅坐标，非锁定）
     bool soundChasing;
@@ -218,7 +228,7 @@ public class ZombieController : MonoBehaviour
                 {
                     int dir = (int)Mathf.Sign(rdx);
                     facing = dir;
-                    float nx = transform.position.x + dir * moveSpeed * Time.deltaTime;
+                    float nx = transform.position.x + dir * patrolSpeed * Time.deltaTime;   // 回岗=巡逻速度
                     nx = Blocker.ClampMove(transform.position.x, nx, transform.position.y);
                     transform.position = new Vector3(nx, transform.position.y, transform.position.z);
                 }
@@ -230,13 +240,24 @@ public class ZombieController : MonoBehaviour
             }
             else if (mode == Mode.Patrol)
             {
-                float half = patrolRange * 0.5f;
-                float x = transform.position.x + patrolDir * moveSpeed * Time.deltaTime;
-                if (x > originX + half) { x = originX + half; patrolDir = -1; }
-                else if (x < originX - half) { x = originX - half; patrolDir = 1; }
-                x = Blocker.ClampMove(transform.position.x, x, transform.position.y);   // 撞墙截停
-                facing = patrolDir;
-                transform.position = new Vector3(x, transform.position.y, transform.position.z);
+                // 潜行窗口：慢巡 + 端点驻足（驻足期间视觉/听觉照常，掉头发生在驻足结束那一刻）
+                if (dwellTimer > 0f)
+                {
+                    dwellTimer -= Time.deltaTime;
+                    if (dwellTimer <= 0f) patrolDir = -patrolDir;   // 驻足结束才掉头
+                }
+                else
+                {
+                    float half = patrolRange * 0.5f;
+                    float x = transform.position.x + patrolDir * patrolSpeed * Time.deltaTime;
+                    bool hitEnd = false;
+                    if (x >= originX + half) { x = originX + half; hitEnd = true; }
+                    else if (x <= originX - half) { x = originX - half; hitEnd = true; }
+                    x = Blocker.ClampMove(transform.position.x, x, transform.position.y);   // 撞墙截停
+                    facing = patrolDir;
+                    transform.position = new Vector3(x, transform.position.y, transform.position.z);
+                    if (hitEnd) dwellTimer = Random.Range(dwellMin, dwellMax);   // 到端点：驻足，朝向保持
+                }
             }
             return;
         }
