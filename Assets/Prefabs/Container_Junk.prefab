@@ -124,14 +124,21 @@ MonoBehaviour:
   containerName: "\u6742\u7269\u62BD\u5C49"
   lootTable:
   - itemName: "\u5E03\u6599"
-    weight: 30
-  - itemName: "\u80F6\u5E26"
-    weight: 25
-  - itemName: "\u7535\u6C60"
     weight: 20
+  - itemName: "\u80F6\u5E26"
+    weight: 15
+  - itemName: "\u7535\u6C60"
+    weight: 15
   - itemName: "\u6728\u6750"
-    weight: 25
+    weight: 20
+  - itemName: "\u9489\u5B50"
+    weight: 12
+  - itemName: "\u91D1\u5C5E\u7247"
+    weight: 10
+  - itemName: "\u7535\u7EBF"
+    weight: 8
   emptyChance: 0.1
   twoItemChance: 0.45
   searchRange: 1.5
   searchDuration: 2.5
+  searchNoiseRadius: 4
