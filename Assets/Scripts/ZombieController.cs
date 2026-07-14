@@ -22,7 +22,7 @@ public class ZombieController : MonoBehaviour
     [Header("视野")]
     [Tooltip("面朝方向的发现距离（玩家静步时减半）")]
     public float sightRange = 7f;
-    [Tooltip("背后感知距离（贴脸才被发现，静步不影响）")]
+    [Tooltip("(已退役·fix3) 背后感知——丧尸只有视觉和听觉,无第六感;贴身察觉由声音系统天然覆盖")]
     public float backSenseRange = 1.5f;
 
     [Header("移动")]
@@ -127,6 +127,27 @@ public class ZombieController : MonoBehaviour
         patrolDir = facing;
         rend = GetComponent<Renderer>();
         if (rend != null) baseColor = rend.material.GetColor("_BaseColor");
+        BuildFaceMarker();
+    }
+
+    // fix3：朝向可视化——前脸深红小色块，随 facing 翻面（占位，非美术）
+    Transform faceMarker;
+
+    void BuildFaceMarker()
+    {
+        var m = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        m.name = "FaceMarker";
+        Object.Destroy(m.GetComponent<Collider>());
+        m.transform.SetParent(transform, false);
+        m.transform.localScale = new Vector3(0.18f, 0.35f, 0.35f);
+        m.GetComponent<Renderer>().material.SetColor("_BaseColor", new Color(0.45f, 0.05f, 0.05f));
+        faceMarker = m.transform;
+    }
+
+    void LateUpdate()
+    {
+        if (faceMarker != null)
+            faceMarker.localPosition = new Vector3(facing * 0.55f, 0.35f, 0f);
     }
 
     /// <summary>被玩家命中：闪白+击退（打击手感v1b）+ 硬直（闭环v1，打断前摇）。</summary>
@@ -191,12 +212,13 @@ public class ZombieController : MonoBehaviour
 
         if (!alerted)
         {
-            // 视觉发现（永久锁定）：同层 + 视线未被隔墙/关门截断 + 正面视距(蹲行减半)或背后贴脸
+            // 视觉发现（永久锁定）：同层 + 正面朝向 + 视距内(蹲行减半) + 视线无遮挡 + 非偷窥
+            // fix3：背后贴脸感知已删——发现条件只剩视觉与听觉(NoiseSystem)
             float effectiveSight = (playerMove != null && playerMove.IsSneaking) ? sightRange * 0.5f : sightRange;
             bool inFront = Mathf.Sign(dx) == facing;
             bool lineBlocked = Blocker.BlocksLine(transform.position.x, player.position.x, transform.position.y);
             if (!PlayerInteraction.IsPeeking   // 偷窥期间无论朝向/距离都无法发现
-                && sameFloor && !lineBlocked && ((inFront && dist <= effectiveSight) || dist <= backSenseRange))
+                && sameFloor && !lineBlocked && inFront && dist <= effectiveSight)
             {
                 alerted = true;
                 soundChasing = false; returning = false;

@@ -12,7 +12,7 @@ public class PlayerMovement : MonoBehaviour
     [Tooltip("走路速度（世界单位/秒）")]
     public float moveSpeed = 5f;
 
-    [Tooltip("蹲行速度（C 键切换蹲/走）")]
+    [Tooltip("蹲行速度（Ctrl 切换蹲/走）")]
     public float sneakSpeed = 2.5f;
 
     [Tooltip("跑步速度（双击方向键触发，按住维持）")]
@@ -54,8 +54,8 @@ public class PlayerMovement : MonoBehaviour
         var kb = Keyboard.current;
         if (kb == null || Locked) return;
 
-        // —— 移动三态：C 切换蹲/走；双击方向 = 跑(按住维持)；蹲下双击 = 先起身再跑 ——
-        if (kb.cKey.wasPressedThisFrame)
+        // —— 移动三态：Ctrl 切换蹲/走(fix3,C 已删)；双击方向 = 跑(按住维持)；蹲下双击 = 先起身再跑 ——
+        if (kb.leftCtrlKey.wasPressedThisFrame || kb.rightCtrlKey.wasPressedThisFrame)
         {
             IsSneaking = !IsSneaking;
             if (IsSneaking) IsRunning = false;
