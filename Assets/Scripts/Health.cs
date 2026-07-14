@@ -52,6 +52,7 @@ public class Health : MonoBehaviour
                 current = restoreTo;
                 Debug.Log($"{itemName}救了你!");
                 HudController.Instance?.ShowMessage($"{itemName}救了你!", 2f);
+                HudController.Instance?.FlashHpHighlight();   // 血条跳到恢复值并高亮
                 StartCoroutine(InvulnBlink());
                 return;
             }

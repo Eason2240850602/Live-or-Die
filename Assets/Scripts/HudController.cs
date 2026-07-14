@@ -33,6 +33,13 @@ public class HudController : MonoBehaviour
     readonly Image[] borders = new Image[4];
     const float BorderAlpha = 0.5f;
 
+    // HUD 血量条
+    Image hpFill;
+    Text hpText;
+    float hpFlash;                     // 掉血闪烁计时
+    float hpHighlight;                 // 斩杀线高亮计时
+    static readonly Color HpColor = new Color(0.30f, 0.85f, 0.40f, 0.95f);
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Bootstrap()
     {
@@ -106,8 +113,19 @@ public class HudController : MonoBehaviour
         // 受击红边框：掉血期间亮起，停止掉血约 0.5 秒后淡出
         if (playerHealth != null)
         {
-            if (playerHealth.Current < lastHealth) hurtHold = 0.5f;
+            if (playerHealth.Current < lastHealth) { hurtHold = 0.5f; hpFlash = 0.15f; }
             lastHealth = playerHealth.Current;
+        }
+
+        // 血量条实时绑定
+        if (playerHealth != null && hpFill != null)
+        {
+            hpFill.fillAmount = Mathf.Clamp01(playerHealth.Current / playerHealth.maxHealth);
+            hpText.text = $"HP {Mathf.CeilToInt(playerHealth.Current)}/{Mathf.CeilToInt(playerHealth.maxHealth)}";
+
+            if (hpHighlight > 0f)      { hpHighlight -= Time.deltaTime; hpFill.color = new Color(1f, 0.9f, 0.3f, 1f); }   // 斩杀线高亮(金)
+            else if (hpFlash > 0f)     { hpFlash -= Time.deltaTime; hpFill.color = Color.white; }                          // 掉血闪烁
+            else                       hpFill.color = HpColor;
         }
         if (hurtHold > 0f)
         {
@@ -140,6 +158,9 @@ public class HudController : MonoBehaviour
 
     public void OpenLootWindow(Pickup container) => lootWindow?.Open(container);
 
+    /// <summary>斩杀线触发：血条跳到恢复值并短暂高亮（Health 调用）。</summary>
+    public void FlashHpHighlight() => hpHighlight = 0.6f;
+
     Text executeHint;
     /// <summary>感知v1段3："F 处决"小提示（条件满足才显示）。</summary>
     public void SetExecuteHint(bool show)
@@ -163,6 +184,35 @@ public class HudController : MonoBehaviour
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);
         gameObject.AddComponent<GraphicRaycaster>();
+
+        // 血量条（左上角常驻）：底 + 填充 + 数字
+        var hpBg = new GameObject("HpBar");
+        var hpRT = hpBg.AddComponent<RectTransform>();
+        hpRT.SetParent(transform, false);
+        hpRT.anchorMin = hpRT.anchorMax = new Vector2(0, 1);
+        hpRT.pivot = new Vector2(0, 1);
+        hpRT.anchoredPosition = new Vector2(20, -20);
+        hpRT.sizeDelta = new Vector2(300, 28);
+        var hpBgImg = hpBg.AddComponent<Image>();
+        hpBgImg.sprite = white;
+        hpBgImg.color = new Color(0f, 0f, 0f, 0.6f);
+
+        var hpFillGO = new GameObject("Fill");
+        var hpFillRT = hpFillGO.AddComponent<RectTransform>();
+        hpFillRT.SetParent(hpRT, false);
+        hpFillRT.anchorMin = Vector2.zero; hpFillRT.anchorMax = Vector2.one;
+        hpFillRT.offsetMin = new Vector2(3, 3); hpFillRT.offsetMax = new Vector2(-3, -3);
+        hpFill = hpFillGO.AddComponent<Image>();
+        hpFill.sprite = white;
+        hpFill.color = HpColor;
+        hpFill.type = Image.Type.Filled;
+        hpFill.fillMethod = Image.FillMethod.Horizontal;
+        hpFill.fillOrigin = (int)Image.OriginHorizontal.Left;
+        hpFill.fillAmount = 1f;
+
+        hpText = MakeText("HpText", new Vector2(0, 1), new Vector2(28, -18), new Vector2(280, 30),
+            new Vector2(0, 1), TextAnchor.MiddleLeft, 20);
+        hpText.text = "HP 100/100";
 
         // C 背包计数（右上角常驻）
         counterText = MakeText("Counter", new Vector2(1, 1), new Vector2(-20, -20), new Vector2(320, 50),
