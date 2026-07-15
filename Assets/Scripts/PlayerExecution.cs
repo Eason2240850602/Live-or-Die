@@ -34,6 +34,7 @@ public class PlayerExecution : MonoBehaviour
     void Update()
     {
         if (Time.timeScale == 0f) return;
+        if (LootWindow.AnyOpen) { HudController.Instance?.SetExecuteHint(false); return; }   // 开箱时 F 让位给 Ctrl+F 全拿
 
         if (executing)
         {

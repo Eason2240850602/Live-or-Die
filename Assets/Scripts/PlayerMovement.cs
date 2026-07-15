@@ -54,8 +54,10 @@ public class PlayerMovement : MonoBehaviour
         var kb = Keyboard.current;
         if (kb == null || Locked) return;
 
-        // —— 移动三态：Ctrl 切换蹲/走(fix3,C 已删)；双击方向 = 跑(按住维持)；蹲下双击 = 先起身再跑 ——
-        if (kb.leftCtrlKey.wasPressedThisFrame || kb.rightCtrlKey.wasPressedThisFrame)
+        // —— 键位批：蹲/起 = Ctrl 或 C(双绑定,切换式)；开箱窗口开着时让位给 Ctrl 组合键 ——
+        bool crouchTap = kb.leftCtrlKey.wasPressedThisFrame || kb.rightCtrlKey.wasPressedThisFrame
+                      || kb.cKey.wasPressedThisFrame;
+        if (crouchTap && !LootWindow.AnyOpen)
         {
             IsSneaking = !IsSneaking;
             if (IsSneaking) IsRunning = false;
@@ -66,19 +68,28 @@ public class PlayerMovement : MonoBehaviour
         bool leftTap   = kb.aKey.wasPressedThisFrame || kb.leftArrowKey.wasPressedThisFrame;
         bool rightTap  = kb.dKey.wasPressedThisFrame || kb.rightArrowKey.wasPressedThisFrame;
 
+        // 跑 = Shift 按住(主) 或 双击方向(保留)；蹲下触发跑 = 先起身
         if (leftTap || rightTap)
         {
             int dir = rightTap ? 1 : -1;
             if (dir == lastTapDir && Time.time - lastTapTime <= doubleTapWindow)
             {
                 IsRunning = true;
-                IsSneaking = false;   // 蹲下双击方向：先起身再跑
+                IsSneaking = false;
             }
             lastTapDir = dir;
             lastTapTime = Time.time;
         }
-        if (IsRunning && !((lastTapDir > 0 && rightHeld) || (lastTapDir < 0 && leftHeld)))
-            IsRunning = false;        // 松开方向键 → 回走路
+        bool shiftHeld = kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed;
+        if (shiftHeld && (leftHeld || rightHeld))
+        {
+            IsRunning = true;
+            IsSneaking = false;
+        }
+        if (IsRunning && !shiftHeld && !((lastTapDir > 0 && rightHeld) || (lastTapDir < 0 && leftHeld)))
+            IsRunning = false;        // 双击跑：松开方向键回走；Shift 跑：松开 Shift 且无双击维持时回走
+        if (IsRunning && !(leftHeld || rightHeld))
+            IsRunning = false;
 
         float targetY = IsSneaking ? baseScaleY * 0.9f : baseScaleY;
         if (!Mathf.Approximately(transform.localScale.y, targetY))

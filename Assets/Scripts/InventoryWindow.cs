@@ -59,7 +59,8 @@ public class InventoryWindow : MonoBehaviour
         var kb = Keyboard.current;
         if (kb == null) return;
 
-        if (kb.iKey.wasPressedThisFrame)
+        // 键位批：Tab 开/关背包页（I 保留为别名）
+        if (kb.tabKey.wasPressedThisFrame || kb.iKey.wasPressedThisFrame)
         {
             if (IsOpen) Close(); else Open();
             return;
@@ -275,7 +276,7 @@ public class InventoryWindow : MonoBehaviour
         btnBRect = Button("BtnB", rootRT, new Vector2(0, 0), new Vector2(0, 0), new Vector2(266, 20), new Vector2(210, 64), out btnBText);
         Text closeTxt;
         closeRect = Button("BtnClose", rootRT, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-40, 20), new Vector2(160, 64), out closeTxt);
-        closeTxt.text = "关闭(I)";
+        closeTxt.text = "关闭(Tab)";
     }
 
     GameObject Panel(string name, Transform parent, Vector2 anchor, Vector2 pos, Vector2 size, Color col, Vector2 pivot)

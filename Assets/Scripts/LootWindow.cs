@@ -28,6 +28,9 @@ public class LootWindow : MonoBehaviour
 
     public bool IsOpen => root != null && root.activeSelf;
 
+    /// <summary>任一开箱窗口开着（键位批：供蹲切换/处决让位 Ctrl/F 组合键）。</summary>
+    public static bool AnyOpen { get; private set; }
+
     public void Init(Font font, Sprite white)
     {
         this.font = font;
@@ -47,12 +50,14 @@ public class LootWindow : MonoBehaviour
         titleText.text = c.ContainerName;
         Refresh();
         root.SetActive(true);
+        AnyOpen = true;
     }
 
     public void Close()
     {
         container = null;
         if (root != null) root.SetActive(false);
+        AnyOpen = false;
     }
 
     void Update()
@@ -72,6 +77,14 @@ public class LootWindow : MonoBehaviour
 
         var kb = Keyboard.current;
         if (kb != null && kb.escapeKey.wasPressedThisFrame) { Close(); return; }
+
+        // 键位批：Ctrl+F = 一键全拿（与"全部拿取"按钮同效）
+        if (kb != null && (kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed) && kb.fKey.wasPressedThisFrame)
+        {
+            container.TakeAll();
+            AfterTake();
+            return;
+        }
 
         var mouse = Mouse.current;
         if (mouse != null && mouse.leftButton.wasPressedThisFrame)
