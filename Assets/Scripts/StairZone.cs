@@ -27,4 +27,17 @@ public class StairZone : MonoBehaviour
             if (x >= z.xMin && x <= z.xMax) return z;
         return null;
     }
+
+    /// <summary>离 x 最近的楼梯区（追击v2：丧尸上楼寻路用；无则 null）。</summary>
+    public static StairZone Nearest(float x)
+    {
+        StairZone best = null;
+        float bd = float.MaxValue;
+        foreach (var z in all)
+        {
+            float d = Mathf.Abs((z.xMin + z.xMax) * 0.5f - x);
+            if (d < bd) { bd = d; best = z; }
+        }
+        return best;
+    }
 }

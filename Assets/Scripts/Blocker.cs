@@ -28,6 +28,18 @@ public class Blocker : MonoBehaviour
         return false;
     }
 
+    /// <summary>追击v2：找出会截停这次移动的阻挡体（无则 null）——用于区分"撞门(砸)"和"撞墙(丢失)"。</summary>
+    public static Blocker FirstBlocking(float fromX, float toX, float centerY)
+    {
+        foreach (var b in all)
+        {
+            if (centerY < b.yMin || centerY > b.yMax) continue;
+            if (fromX <= b.xMin && toX > b.xMin) return b;
+            if (fromX >= b.xMax && toX < b.xMax) return b;
+        }
+        return null;
+    }
+
     /// <summary>从 fromX 移到 toX（角色中心在 centerY）：被阻挡则截停在阻挡边缘。</summary>
     public static float ClampMove(float fromX, float toX, float centerY)
     {

@@ -2,11 +2,12 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 丧尸。闭环v1：贴身持续掉血退役，改为可读招的前摇攻击制——
-/// 进入攻击范围 → 抬手前摇(头顶红色充能条,world-space,充满即挥) → 挥击一次25伤 → 后摇 → 仍在范围则重复。
-/// 受击硬直 0.25s：停止移动与攻击流程，前摇被打断则重新抬手（单只可被连击压制是 v1 允许，多只自然破解）。
-/// 朝向视野(正面/背后)与静步减半、巡逻/站桩、闪白/击退/死亡缩小 均保留。
-/// 充能条只做红色，不做绿色弹反段（弹反块未开）。纯 transform + 距离判断。
+/// 丧尸。追击v2：视觉与听觉同构——追击目标 = 最后已知位置(LKP)：
+///   看得见时每帧刷新；声音给坐标。到达 LKP 看不见 → 张望 2.5s → 脱战回岗(patrolSpeed)。
+///   追击态可用右梯跨层(速度=追击×0.8，可被攻击硬直"卡"一下)；巡逻/驻足/回岗永远锁本层。
+///   追击撞关门 → 砸门 3s(每秒声音 r=6，会惊动别人) → 门开立即扑；砸满未见 → 按丢失脱战。不做破门。
+/// 保留：前摇攻击/硬直/巡逻驻足/朝向视野(蹲行减半,无背后感知)/遮挡/偷窥豁免/处决/闪白击退/朝向标记。
+/// 纯 transform + 距离判断。
 /// </summary>
 public class ZombieController : MonoBehaviour
 {
@@ -16,102 +17,77 @@ public class ZombieController : MonoBehaviour
     public Mode mode = Mode.Patrol;
     [Tooltip("巡逻范围（以出生点为中心的总宽度）")]
     public float patrolRange = 5f;
-    [Tooltip("站桩尸初始朝向（勾=朝右）；巡逻尸朝向跟随移动方向")]
+    [Tooltip("站桩尸初始朝向（勾=朝右）")]
     public bool facingRight = true;
 
     [Header("视野")]
-    [Tooltip("面朝方向的发现距离（玩家静步时减半）")]
+    [Tooltip("面朝方向的发现距离（玩家蹲行时减半）")]
     public float sightRange = 7f;
-    [Tooltip("(已退役·fix3) 背后感知——丧尸只有视觉和听觉,无第六感;贴身察觉由声音系统天然覆盖")]
+    [Tooltip("(已退役·fix3) 背后感知——丧尸只有视觉和听觉,无第六感")]
     public float backSenseRange = 1.5f;
 
     [Header("移动")]
-    [Tooltip("追击速度（视觉锁定/声音扑向），不受巡逻减速影响")]
+    [Tooltip("追击速度（视觉锁定/声音扑向）")]
     public float moveSpeed = 2.2f;
-
-    [Tooltip("巡逻/回岗速度（潜行窗口：慢，给尾行机会）")]
+    [Tooltip("巡逻/回岗速度")]
     public float patrolSpeed = 1.2f;
-
-    [Tooltip("端点驻足时长范围（秒），驻足结束才掉头")]
+    [Tooltip("端点驻足时长范围（秒）")]
     public float dwellMin = 5f;
     public float dwellMax = 8f;
 
+    [Header("追击v2")]
+    [Tooltip("到达最后已知位置后的张望时长（秒），到时脱战")]
+    public float lookoutTime = 2.5f;
+    [Tooltip("砸门时长（秒），砸满未见玩家按丢失处理")]
+    public float bashTime = 3f;
+    [Tooltip("砸门声音半径（每秒一次，会惊动其他丧尸）")]
+    public float bashNoiseRadius = 6f;
+    [Tooltip("爬梯速度 = 追击速度 × 该系数")]
+    public float climbSpeedFactor = 0.8f;
+
     [Header("攻击（前摇制）")]
-    [Tooltip("攻击范围：与玩家的 X 距离小于它就开始抬手")]
     public float touchRange = 1.2f;
     [Tooltip("前摇时长（行走尸0.7 / 跑尸0.5）")]
     public float windupTime = 0.7f;
-    [Tooltip("挥击伤害")]
     public float swingDamage = 25f;
-    [Tooltip("后摇时长")]
     public float swingRecovery = 0.5f;
-    [Tooltip("受击硬直时长")]
     public float staggerTime = 0.25f;
 
     [Tooltip("可被无声处决（精英/防弹尸设 false）")]
     public bool canBeExecuted = true;
 
+    // —— runtime ——
     Transform player;
     Health playerHealth;
     PlayerMovement playerMove;
     float originX;
     int facing;
     int patrolDir = 1;
-    bool alerted;
     bool dying;
     Renderer rend;
     Color baseColor;
+
+    bool engaged;            // 追击态（视觉/听觉共用）
+    Vector3 targetPos;       // 最后已知位置
+    float lookout;
+    bool returning;
+    float dwellTimer;
 
     enum AtkState { None, Windup, Recovery }
     AtkState atk = AtkState.None;
     float atkTimer;
     float staggerTimer;
 
-    float dwellTimer;   // >0 = 端点驻足中
+    StairZone climbZone;     // 非空=爬梯中
+    float climbT;
+    int climbDir;            // +1 上 / -1 下
 
-    // 感知v1：声音追击（仅坐标，非锁定）
-    bool soundChasing;
-    Vector3 soundTarget;
-    float soundWait;
-    bool returning;
-
-    // —— 感知v1段3：无声处决 ——
-    /// <summary>朝向（只读）：+1 右 / -1 左。处决的"背后"判定用。</summary>
-    public int FacingDir => facing;
-    /// <summary>垂死中（只读）。</summary>
-    public bool IsDying => dying;
-    /// <summary>被处决中（挣扎抖动，冻结 AI）。</summary>
-    public bool BeingExecuted { get; private set; }
-
-    public void StartExecuted()
-    {
-        BeingExecuted = true;
-        CancelWindup();          // 零红条
-        staggerTimer = 0f;
-    }
-
-    public void CancelExecuted() { BeingExecuted = false; }
-
-    /// <summary>处决完成：无声即死（缩小消失）。</summary>
-    public void ExecuteKill()
-    {
-        BeingExecuted = false;
-        DieShrink();
-    }
-
-    /// <summary>听到声音（NoiseSystem 调用）：取得声源坐标并追击。已锁定/垂死/被处决不响应。返回是否被惊动。</summary>
-    public bool HearNoise(Vector3 pos)
-    {
-        if (dying || alerted || BeingExecuted) return false;
-        soundChasing = true;
-        soundTarget = pos;
-        soundWait = 0f;
-        returning = false;
-        return true;
-    }
+    Door bashDoor;           // 非空=砸门中
+    float bashTimer, bashNoiseTimer;
 
     GameObject barRoot;
     Image barFill;
+    Transform faceMarker;
 
     void Awake()
     {
@@ -130,35 +106,36 @@ public class ZombieController : MonoBehaviour
         BuildFaceMarker();
     }
 
-    // fix3：朝向可视化——前脸深红小色块，随 facing 翻面（占位，非美术）
-    Transform faceMarker;
+    // —— 处决（感知v1段3） ——
+    public int FacingDir => facing;
+    public bool IsDying => dying;
+    public bool BeingExecuted { get; private set; }
 
-    void BuildFaceMarker()
+    public void StartExecuted() { BeingExecuted = true; CancelWindup(); staggerTimer = 0f; }
+    public void CancelExecuted() { BeingExecuted = false; }
+    public void ExecuteKill() { BeingExecuted = false; DieShrink(); }
+
+    /// <summary>听到声音：取得声源坐标。已在追击 → 刷新 LKP 并放弃砸门；否则进入追击。垂死/被处决不响应。</summary>
+    public bool HearNoise(Vector3 pos)
     {
-        var m = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        m.name = "FaceMarker";
-        Object.Destroy(m.GetComponent<Collider>());
-        m.transform.SetParent(transform, false);
-        m.transform.localScale = new Vector3(0.18f, 0.35f, 0.35f);
-        m.GetComponent<Renderer>().material.SetColor("_BaseColor", new Color(0.45f, 0.05f, 0.05f));
-        faceMarker = m.transform;
+        if (dying || BeingExecuted) return false;
+        targetPos = pos;
+        lookout = 0f;
+        returning = false;
+        bashDoor = null;         // 有新声源 → 不砸了，扑声音
+        engaged = true;
+        return true;
     }
 
-    void LateUpdate()
-    {
-        if (faceMarker != null)
-            faceMarker.localPosition = new Vector3(facing * 0.55f, 0.35f, 0f);
-    }
-
-    /// <summary>被玩家命中：闪白+击退（打击手感v1b）+ 硬直（闭环v1，打断前摇）。</summary>
+    /// <summary>被玩家命中：闪白+击退+硬直（打断前摇）。</summary>
     public void OnHit(Vector3 attackerPos)
     {
         if (dying) return;
         int away = transform.position.x >= attackerPos.x ? 1 : -1;
-        transform.position += new Vector3(away * 0.3f, 0f, 0f);
+        if (climbZone == null)   // 爬梯中不位移(防被打下楼梯路径)，只硬直"卡"一下
+            transform.position += new Vector3(away * 0.3f, 0f, 0f);
         StopCoroutine(nameof(FlashWhite));
         StartCoroutine(nameof(FlashWhite));
-
         staggerTimer = staggerTime;
         CancelWindup();
     }
@@ -196,138 +173,220 @@ public class ZombieController : MonoBehaviour
     {
         if (dying || player == null) return;
 
-        if (BeingExecuted)   // 被处决中：挣扎抖动，冻结移动/攻击/感知
+        if (BeingExecuted)
         {
             float jx = Mathf.Sin(Time.time * 40f) * 0.03f;
             transform.position = new Vector3(transform.position.x + jx, transform.position.y, transform.position.z);
             return;
         }
 
+        if (staggerTimer > 0f) { staggerTimer -= Time.deltaTime; return; }   // 硬直（含爬梯中"卡"）
+
         float dx = player.position.x - transform.position.x;
         float dist = Mathf.Abs(dx);
-
-        // 研究所灰盒：跨层不感知/不追打（丧尸不用楼梯）；层高7,同层判定阈值3
         bool sameFloor = Mathf.Abs(player.position.y - transform.position.y) < 3f;
-        if (alerted && !sameFloor) return;   // 已发现但玩家上/下楼 → 原地等待
 
-        if (!alerted)
+        // 追击中的视觉刷新（全向）：看得见 → 每帧刷新 LKP
+        bool canSeeNow = sameFloor && dist <= sightRange && !PlayerInteraction.IsPeeking
+            && !Blocker.BlocksLine(transform.position.x, player.position.x, transform.position.y);
+        if (engaged && canSeeNow) { targetPos = player.position; lookout = 0f; }
+
+        if (!engaged)
         {
-            // 视觉发现（永久锁定）：同层 + 正面朝向 + 视距内(蹲行减半) + 视线无遮挡 + 非偷窥
-            // fix3：背后贴脸感知已删——发现条件只剩视觉与听觉(NoiseSystem)
-            float effectiveSight = (playerMove != null && playerMove.IsSneaking) ? sightRange * 0.5f : sightRange;
+            // 初次发现（视觉）：同层+正面朝向+视距(蹲行减半)+无遮挡+非偷窥（fix3：无背后感知）
+            float eff = (playerMove != null && playerMove.IsSneaking) ? sightRange * 0.5f : sightRange;
             bool inFront = Mathf.Sign(dx) == facing;
-            bool lineBlocked = Blocker.BlocksLine(transform.position.x, player.position.x, transform.position.y);
-            if (!PlayerInteraction.IsPeeking   // 偷窥期间无论朝向/距离都无法发现
-                && sameFloor && !lineBlocked && inFront && dist <= effectiveSight)
+            if (canSeeNow && inFront && dist <= eff)
             {
-                alerted = true;
-                soundChasing = false; returning = false;
+                engaged = true;
+                targetPos = player.position;
+                lookout = 0f; returning = false;
                 Debug.Log("丧尸发现了你!");
             }
-            else if (soundChasing)
-            {
-                // 声音给坐标：扑向最后听到的位置；到达(或被墙截停)后停约2秒 → 脱战返回
-                float sdx = soundTarget.x - transform.position.x;
-                if (Mathf.Abs(sdx) > 0.5f)
-                {
-                    int dir = (int)Mathf.Sign(sdx);
-                    facing = dir;
-                    float nx = transform.position.x + dir * moveSpeed * Time.deltaTime;
-                    nx = Blocker.ClampMove(transform.position.x, nx, transform.position.y);
-                    bool stuck = Mathf.Approximately(nx, transform.position.x);
-                    transform.position = new Vector3(nx, transform.position.y, transform.position.z);
-                    if (stuck) soundWait += Time.deltaTime;   // 被墙挡住也按到达处理
-                    else soundWait = 0f;
-                }
-                else soundWait += Time.deltaTime;
-                if (soundWait >= 2f) { soundChasing = false; returning = true; }
-            }
-            else if (returning)
-            {
-                // 回原岗
-                float rdx = originX - transform.position.x;
-                if (Mathf.Abs(rdx) > 0.3f)
-                {
-                    int dir = (int)Mathf.Sign(rdx);
-                    facing = dir;
-                    float nx = transform.position.x + dir * patrolSpeed * Time.deltaTime;   // 回岗=巡逻速度
-                    nx = Blocker.ClampMove(transform.position.x, nx, transform.position.y);
-                    transform.position = new Vector3(nx, transform.position.y, transform.position.z);
-                }
-                else
-                {
-                    returning = false;
-                    if (mode == Mode.Standing) facing = facingRight ? 1 : -1;   // 站桩恢复原朝向
-                }
-            }
-            else if (mode == Mode.Patrol)
-            {
-                // 潜行窗口：慢巡 + 端点驻足（驻足期间视觉/听觉照常，掉头发生在驻足结束那一刻）
-                if (dwellTimer > 0f)
-                {
-                    dwellTimer -= Time.deltaTime;
-                    if (dwellTimer <= 0f) patrolDir = -patrolDir;   // 驻足结束才掉头
-                }
-                else
-                {
-                    float half = patrolRange * 0.5f;
-                    float x = transform.position.x + patrolDir * patrolSpeed * Time.deltaTime;
-                    bool hitEnd = false;
-                    if (x >= originX + half) { x = originX + half; hitEnd = true; }
-                    else if (x <= originX - half) { x = originX - half; hitEnd = true; }
-                    x = Blocker.ClampMove(transform.position.x, x, transform.position.y);   // 撞墙截停
-                    facing = patrolDir;
-                    transform.position = new Vector3(x, transform.position.y, transform.position.z);
-                    if (hitEnd) dwellTimer = Random.Range(dwellMin, dwellMax);   // 到端点：驻足，朝向保持
-                }
-            }
+            else if (returning) ReturnStep();
+            else if (mode == Mode.Patrol) PatrolStep();
             return;
         }
 
-        // —— 已发现 ——
-        if (staggerTimer > 0f)                     // 受击硬直：停移动停攻击
+        // —— 追击态 ——
+        if (climbZone != null) { ClimbStep(); return; }
+        if (bashDoor != null) { BashStep(canSeeNow); return; }
+
+        if (atk != AtkState.None) { AttackStep(dist, sameFloor); return; }
+        if (sameFloor && dist <= touchRange)
         {
-            staggerTimer -= Time.deltaTime;
+            atk = AtkState.Windup;
+            atkTimer = 0f;
+            facing = (int)Mathf.Sign(dx);
+            ShowBar();
             return;
         }
 
+        bool targetOtherFloor = Mathf.Abs(targetPos.y - transform.position.y) >= 3f;
+        if (targetOtherFloor)
+        {
+            // 目标在另一层 → 走向右梯入口 → 爬
+            var zone = StairZone.Nearest(transform.position.x);
+            if (zone == null) { LookoutTick(canSeeNow); return; }
+            bool iAmBottom = Mathf.Abs(transform.position.y - (zone.bottomY + 1f))
+                           < Mathf.Abs(transform.position.y - (zone.topY + 1f));
+            Vector2 entry = iAmBottom ? zone.BottomPoint : zone.TopPoint;
+            if (Mathf.Abs(transform.position.x - entry.x) <= 0.3f)
+            {
+                climbZone = zone;
+                climbDir = iAmBottom ? 1 : -1;
+                climbT = iAmBottom ? 0f : 1f;
+            }
+            else MoveEngagedTowards(entry.x, canSeeNow);
+        }
+        else if (Mathf.Abs(targetPos.x - transform.position.x) > 0.5f)
+        {
+            MoveEngagedTowards(targetPos.x, canSeeNow);
+        }
+        else if (!canSeeNow)
+        {
+            LookoutTick(canSeeNow);   // 到达 LKP 且看不见 → 张望
+        }
+    }
+
+    // ———— 追击移动（撞门→砸；撞墙→按丢失计时） ————
+    void MoveEngagedTowards(float tx, bool canSeeNow)
+    {
+        int dir = (int)Mathf.Sign(tx - transform.position.x);
+        facing = dir;
+        float nx = transform.position.x + dir * moveSpeed * Time.deltaTime;
+        float clamped = Blocker.ClampMove(transform.position.x, nx, transform.position.y);
+
+        if (Mathf.Approximately(clamped, transform.position.x))
+        {
+            var b = Blocker.FirstBlocking(transform.position.x, nx, transform.position.y);
+            var door = b != null ? b.GetComponent<Door>() : null;
+            if (door != null && !door.open)
+            {
+                bashDoor = door;      // 关门挡路 → 砸门
+                bashTimer = 0f; bashNoiseTimer = 0f;
+                CancelWindup();
+            }
+            else LookoutTick(canSeeNow);   // 墙/碎石挡死 → 按到达处理
+            return;
+        }
+        transform.position = new Vector3(clamped, transform.position.y, transform.position.z);
+    }
+
+    void LookoutTick(bool canSeeNow)
+    {
+        if (canSeeNow) { lookout = 0f; return; }
+        lookout += Time.deltaTime;
+        if (lookout >= lookoutTime) Disengage();
+    }
+
+    void Disengage()
+    {
+        engaged = false;
+        lookout = 0f;
+        bashDoor = null;
+        CancelWindup();
+        returning = true;   // 回岗（patrolSpeed，锁本层）
+    }
+
+    void ClimbStep()
+    {
+        float len = Vector2.Distance(climbZone.BottomPoint, climbZone.TopPoint);
+        climbT += climbDir * moveSpeed * climbSpeedFactor * Time.deltaTime / Mathf.Max(len, 0.01f);
+        facing = (int)Mathf.Sign((climbZone.TopPoint.x - climbZone.BottomPoint.x) * climbDir);
+
+        if (climbT >= 1f) { ExitClimb(climbZone.TopPoint); return; }
+        if (climbT <= 0f) { ExitClimb(climbZone.BottomPoint); return; }
+        Vector2 p = Vector2.Lerp(climbZone.BottomPoint, climbZone.TopPoint, climbT);
+        transform.position = new Vector3(p.x, p.y, transform.position.z);
+    }
+
+    void ExitClimb(Vector2 at)
+    {
+        transform.position = new Vector3(at.x, at.y, transform.position.z);
+        climbZone = null;
+    }
+
+    void BashStep(bool canSeeNow)
+    {
+        if (bashDoor == null || bashDoor.open) { bashDoor = null; return; }   // 门开了 → 立即恢复追击
+
+        facing = (int)Mathf.Sign(bashDoor.doorX - transform.position.x);
+        bashTimer += Time.deltaTime;
+        bashNoiseTimer += Time.deltaTime;
+        if (bashNoiseTimer >= 1f)
+        {
+            bashNoiseTimer = 0f;
+            NoiseSystem.Emit(bashDoor.transform.position, bashNoiseRadius, "砸门", this);
+        }
+        if (bashTimer >= bashTime)
+        {
+            bashDoor = null;
+            if (!canSeeNow) Disengage();   // 砸满未见 → 按丢失处理
+        }
+    }
+
+    void AttackStep(float dist, bool sameFloor)
+    {
         switch (atk)
         {
-            case AtkState.Windup:                  // 前摇：红条充能，充满即挥
+            case AtkState.Windup:
                 atkTimer += Time.deltaTime;
                 if (barFill != null) barFill.fillAmount = Mathf.Clamp01(atkTimer / windupTime);
                 if (atkTimer >= windupTime)
                 {
                     HideBar();
-                    if (dist <= touchRange && playerHealth != null)
-                        playerHealth.TakeDamage(swingDamage);   // 挥击一次；无敌帧由 Health 拦
+                    if (sameFloor && dist <= touchRange && playerHealth != null)
+                        playerHealth.TakeDamage(swingDamage);
                     atk = AtkState.Recovery;
                     atkTimer = 0f;
                 }
                 break;
-
-            case AtkState.Recovery:                // 后摇
+            case AtkState.Recovery:
                 atkTimer += Time.deltaTime;
                 if (atkTimer >= swingRecovery) { atk = AtkState.None; atkTimer = 0f; }
                 break;
+        }
+    }
 
-            default:                               // 追击 / 进入范围抬手
-                if (dist <= touchRange)
-                {
-                    atk = AtkState.Windup;
-                    atkTimer = 0f;
-                    facing = (int)Mathf.Sign(dx);
-                    ShowBar();
-                }
-                else
-                {
-                    int dir = (int)Mathf.Sign(dx);
-                    facing = dir;
-                    float nx = transform.position.x + dir * moveSpeed * Time.deltaTime;
-                    nx = Blocker.ClampMove(transform.position.x, nx, transform.position.y);   // 撞墙截停
-                    transform.position = new Vector3(nx, transform.position.y, transform.position.z);
-                }
-                break;
+    void PatrolStep()
+    {
+        if (dwellTimer > 0f)
+        {
+            dwellTimer -= Time.deltaTime;
+            if (dwellTimer <= 0f) patrolDir = -patrolDir;
+        }
+        else
+        {
+            float half = patrolRange * 0.5f;
+            float x = transform.position.x + patrolDir * patrolSpeed * Time.deltaTime;
+            bool hitEnd = false;
+            if (x >= originX + half) { x = originX + half; hitEnd = true; }
+            else if (x <= originX - half) { x = originX - half; hitEnd = true; }
+            x = Blocker.ClampMove(transform.position.x, x, transform.position.y);
+            facing = patrolDir;
+            transform.position = new Vector3(x, transform.position.y, transform.position.z);
+            if (hitEnd) dwellTimer = Random.Range(dwellMin, dwellMax);
+        }
+    }
+
+    void ReturnStep()
+    {
+        // 回岗锁本层：走向 originX（若被追到另一层，就在当前层 originX 处重新驻防）
+        float rdx = originX - transform.position.x;
+        if (Mathf.Abs(rdx) > 0.3f)
+        {
+            int dir = (int)Mathf.Sign(rdx);
+            facing = dir;
+            float nx = transform.position.x + dir * patrolSpeed * Time.deltaTime;
+            nx = Blocker.ClampMove(transform.position.x, nx, transform.position.y);
+            if (Mathf.Approximately(nx, transform.position.x)) { returning = false; return; }   // 被挡死就地驻防
+            transform.position = new Vector3(nx, transform.position.y, transform.position.z);
+        }
+        else
+        {
+            returning = false;
+            if (mode == Mode.Standing) facing = facingRight ? 1 : -1;
         }
     }
 
@@ -338,7 +397,25 @@ public class ZombieController : MonoBehaviour
         atkTimer = 0f;
     }
 
-    // —— 头顶红色充能条（world-space，占位纯色，只红不绿） ——
+    // —— 朝向标记（fix3 占位） ——
+    void BuildFaceMarker()
+    {
+        var m = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        m.name = "FaceMarker";
+        Object.Destroy(m.GetComponent<Collider>());
+        m.transform.SetParent(transform, false);
+        m.transform.localScale = new Vector3(0.18f, 0.35f, 0.35f);
+        m.GetComponent<Renderer>().material.SetColor("_BaseColor", new Color(0.45f, 0.05f, 0.05f));
+        faceMarker = m.transform;
+    }
+
+    void LateUpdate()
+    {
+        if (faceMarker != null)
+            faceMarker.localPosition = new Vector3(facing * 0.55f, 0.35f, 0f);
+    }
+
+    // —— 头顶红色充能条 ——
     void ShowBar()
     {
         if (barRoot == null) BuildBar();
