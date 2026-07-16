@@ -58,6 +58,7 @@ public class InventoryWindow : MonoBehaviour
     {
         var kb = Keyboard.current;
         if (kb == null) return;
+        if (PrologueDirector.PauseHeld) return;   // 序章字卡/对话期间让位
 
         // 键位批：Tab 开/关背包页（I 保留为别名）
         if (kb.tabKey.wasPressedThisFrame || kb.iKey.wasPressedThisFrame)
@@ -145,7 +146,8 @@ public class InventoryWindow : MonoBehaviour
                 }
                 break;
             case "卸下回背包":
-                if (!inventory.UnequipRightHand()) statusText.text = "背包已满，无法卸下";
+                if (!inventory.UnequipRightHand())
+                    statusText.text = inventory.LoadoutLocked ? "她给的东西，现在还不能放下" : "背包已满，无法卸下";
                 break;
             case "取回背包":
                 if (!inventory.TakeMedSlotBack()) statusText.text = "背包已满";
@@ -166,7 +168,8 @@ public class InventoryWindow : MonoBehaviour
             bagBg[i].color = CellColor(has, selKind == Sel.Bag && selIndex == i);
         }
 
-        leftHandText.text = "左手\n(禁用)";
+        leftHandText.text = inventory.LeftHand != null ? $"左手\n{inventory.LeftHand}" : "左手\n(禁用)";
+        leftHandText.color = inventory.LeftHand != null ? Color.white : new Color(1f, 1f, 1f, 0.35f);
         rightHandText.text = inventory.RightHand != null ? $"右手\n{inventory.RightHand}" : "右手\n空";
         rightHandBg.color = CellColor(inventory.RightHand != null, selKind == Sel.RightHand);
         medSlotText.text = inventory.MedSlot != null

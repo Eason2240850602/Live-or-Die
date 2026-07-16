@@ -13,10 +13,29 @@ public class Inventory : MonoBehaviour
 
     readonly List<ItemStack> slots = new List<ItemStack>();
 
-    // —— 装备（按双手架构，v1 只启用右手；不写死"只能撬棍"）——
+    // —— 装备（按双手架构；左手常态禁用，序章临时解锁）——
     public string RightHand { get; private set; }          // null = 空手
-    public string LeftHand => null;                        // v1 禁用
+    public string LeftHand { get; private set; }           // 常态 null；序章=手枪
     public ItemStack MedSlot { get; private set; }         // 医疗快捷栏（一个堆）
+
+    /// <summary>序章装备锁：双武器不可卸下不可丢。</summary>
+    public bool LoadoutLocked { get; private set; }
+
+    /// <summary>序章：发放双武器并上锁（右手武士刀/左手手枪）。</summary>
+    public void PrologueEquip(string right, string left)
+    {
+        RightHand = right;
+        LeftHand = left;
+        LoadoutLocked = true;
+    }
+
+    /// <summary>剥夺：双武器消失，左手槽回禁用。</summary>
+    public void PrologueClear()
+    {
+        RightHand = null;
+        LeftHand = null;
+        LoadoutLocked = false;
+    }
 
     public int Count => slots.Count;
     public bool IsFull => slots.Count >= capacity;
@@ -89,10 +108,10 @@ public class Inventory : MonoBehaviour
         return true;
     }
 
-    /// <summary>背包页"卸下回背包"：需要能放下，背包满则拒绝。</summary>
+    /// <summary>背包页"卸下回背包"：需要能放下，背包满则拒绝；序章锁定期间不可卸。</summary>
     public bool UnequipRightHand()
     {
-        if (RightHand == null) return false;
+        if (RightHand == null || LoadoutLocked) return false;
         if (AddItem(RightHand, 1) < 1) return false;   // 放不下（武器不可叠=需空格）
         RightHand = null;
         return true;

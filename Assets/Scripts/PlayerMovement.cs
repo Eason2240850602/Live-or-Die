@@ -38,8 +38,18 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>跑步中（只读）：声音分级用。</summary>
     public bool IsRunning { get; private set; }
 
-    /// <summary>移动锁定（处决动作期间由 PlayerExecution 设置）。</summary>
+    /// <summary>移动锁定（处决/挥击定身/抓取/剥夺共用）。</summary>
     public bool Locked { get; set; }
+
+    /// <summary>定身 seconds 秒后自动解锁（玩家侧计时——施加方死亡也不会卡锁）。</summary>
+    public void LockFor(float seconds) => StartCoroutine(LockRoutine(seconds));
+
+    System.Collections.IEnumerator LockRoutine(float seconds)
+    {
+        Locked = true;
+        yield return new WaitForSeconds(seconds);
+        Locked = false;
+    }
 
     float baseScaleY = -1f;
     StairZone climbing;   // 非空 = 攀爬中（吸附路径线）
