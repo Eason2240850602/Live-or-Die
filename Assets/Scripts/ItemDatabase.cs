@@ -16,6 +16,9 @@ public static class ItemDatabase
         public bool weapon;     // 可装备到手槽
         public int damage;      // 武器伤害
         public float noiseRadius;   // 挥击声音半径（空手默认4）
+        public float attackRange;   // 攻击距离（空手默认1.2）
+        public float knockback;     // 击退量（空手0=无击退）
+        public float swingLock;     // 挥击定身时长（0=用 PlayerAttack 默认）
     }
 
     static readonly Dictionary<string, Def> table = new Dictionary<string, Def>
@@ -49,14 +52,16 @@ public static class ItemDatabase
         { "火药",   new Def { stackMax = 5, groupSize = 1, desc = "干燥的黑色粉末。离火远点。" } },
 
         // —— 四、武器（现役：撬棍/弹药） ——
-        { "撬棍",     new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 50, noiseRadius = 6f, desc = "能开门，也能开颅。可靠的老朋友。" } },
+        { "撬棍",     new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 50, noiseRadius = 6f, attackRange = 2f, knockback = 0.3f, desc = "能开门，也能开颅。可靠的老朋友。" } },
         { "手枪弹药", new Def { stackMax = 20, groupSize = 5, desc = "9mm，每一发都要省着用。" } },
         // 预留 · 战斗扩展块 / 7.16 / 序章（数值待各自块最终定）
         { "菜刀",   new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 35, noiseRadius = 4f, desc = "厨房里最锋利的东西。挥得快，声音小。" } },
         { "匕首",   new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 30, noiseRadius = 3f, desc = "贴身的最后手段，也是最安静的开场。" } },
         { "三叉戟", new Def { stackMax = 1, groupSize = 1, weapon = true, desc = "鱼叉改的长兵。捅进去，就别想立刻拔出来。" } },
         { "大锤",   new Def { stackMax = 1, groupSize = 1, weapon = true, desc = "抡圆了能砸塌一面墙。前提是你抡得动。" } },
-        { "手枪",   new Def { stackMax = 1, groupSize = 1, weapon = true, noiseRadius = 15f, desc = "最后的发言权。整栋楼都会听见。" } },
+        // 序章武器（序章期间发放，不进掉落）
+        { "武士刀", new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 150, attackRange = 2.2f, knockback = 0.3f, noiseRadius = 5f, swingLock = 0.25f, desc = "她留下的刀。刃口亮得不像这个世界的东西。" } },
+        { "手枪",   new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 110, noiseRadius = 15f, swingLock = 0.2f, desc = "最后的发言权。整栋楼都会听见。" } },
 
         // —— 五、工具（预留 · 7.15 / 时段 / 7.21） ——
         { "撬锁器", new Def { stackMax = 1, groupSize = 1, desc = "细钩与扭杆。上锁的容器挡不住它。" } },

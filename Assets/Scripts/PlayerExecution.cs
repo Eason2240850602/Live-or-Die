@@ -64,7 +64,7 @@ public class PlayerExecution : MonoBehaviour
 
     ZombieController FindTarget()
     {
-        if (pm == null || !pm.IsSneaking) return null;   // 必须蹲行
+        if (pm == null || !pm.IsSneaking || pm.Locked) return null;   // 必须蹲行；挥击定身中不可处决
 
         ZombieController best = null;
         float bestDist = float.MaxValue;

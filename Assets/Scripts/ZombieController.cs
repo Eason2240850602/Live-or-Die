@@ -56,6 +56,31 @@ public class ZombieController : MonoBehaviour
     [Tooltip("可被无声处决（精英/防弹尸设 false）")]
     public bool canBeExecuted = true;
 
+    public enum AttackKind { Swing, Grab }
+
+    [Header("序章变体")]
+    [Tooltip("Swing=前摇挥击；Grab=爬尸抓取(定身+伤害,无前摇红条)")]
+    public AttackKind attackKind = AttackKind.Swing;
+    [Tooltip("抓取定身时长（秒）")]
+    public float grabLockTime = 1f;
+    [Tooltip("抓取冷却（秒）")]
+    public float grabCooldown = 3f;
+    [Tooltip("血量比例 ≤ 此值时逃跑（0=不逃）；博士=0.3")]
+    public float fleeAtFraction = 0f;
+    [Tooltip("逃跑目标 X（到达即消失，掉落任务品）")]
+    public float fleeTargetX = 100f;
+    [Tooltip("逃跑消失时掉落的物品名（空=不掉）")]
+    public string fleeDropItem = "";
+    [Tooltip("死亡时原地转化生成该模板（跑尸→爬尸）")]
+    public bool convertOnDeath = false;
+    public GameObject convertTemplate;
+    [Tooltip("追击时可用楼梯跨层（博士=false 锁本层）")]
+    public bool useStairs = true;
+
+    /// <summary>本局累计消灭数（含博士逃跑成功）。序章进度用。</summary>
+    public static int KillCount { get; private set; }
+    public static void ResetKillCount() => KillCount = 0;
+
     // —— runtime ——
     Transform player;
     Health playerHealth;
@@ -85,6 +110,10 @@ public class ZombieController : MonoBehaviour
     Door bashDoor;           // 非空=砸门中
     float bashTimer, bashNoiseTimer;
 
+    Health selfHealth;       // 逃跑阈值判定
+    bool fleeing;
+    float grabCd;            // 抓取冷却计时
+
     GameObject barRoot;
     Image barFill;
     Transform faceMarker;
@@ -103,6 +132,7 @@ public class ZombieController : MonoBehaviour
         patrolDir = facing;
         rend = GetComponent<Renderer>();
         if (rend != null) baseColor = rend.material.GetColor("_BaseColor");
+        selfHealth = GetComponent<Health>();
         BuildFaceMarker();
     }
 
@@ -127,13 +157,13 @@ public class ZombieController : MonoBehaviour
         return true;
     }
 
-    /// <summary>被玩家命中：闪白+击退+硬直（打断前摇）。</summary>
-    public void OnHit(Vector3 attackerPos)
+    /// <summary>被玩家命中：闪白+击退(按武器档案,空手0=不位移)+硬直（打断前摇）。</summary>
+    public void OnHit(Vector3 attackerPos, float knockback = 0.3f)
     {
         if (dying) return;
         int away = transform.position.x >= attackerPos.x ? 1 : -1;
-        if (climbZone == null)   // 爬梯中不位移(防被打下楼梯路径)，只硬直"卡"一下
-            transform.position += new Vector3(away * 0.3f, 0f, 0f);
+        if (climbZone == null && knockback > 0f)   // 爬梯中不位移；空手无击退
+            transform.position += new Vector3(away * knockback, 0f, 0f);
         StopCoroutine(nameof(FlashWhite));
         StartCoroutine(nameof(FlashWhite));
         staggerTimer = staggerTime;
@@ -152,6 +182,7 @@ public class ZombieController : MonoBehaviour
     {
         if (dying) return;
         dying = true;
+        KillCount++;
         CancelWindup();
         StartCoroutine(ShrinkAndDestroy());
     }
@@ -165,6 +196,11 @@ public class ZombieController : MonoBehaviour
             transform.localScale = Vector3.Lerp(start, Vector3.zero, t / 0.25f);
             t += Time.deltaTime;
             yield return null;
+        }
+        if (convertOnDeath && convertTemplate != null)   // 跑尸死后原地出爬尸（脚本标记版）
+        {
+            var c = Object.Instantiate(convertTemplate, new Vector3(transform.position.x, transform.position.y - 0.5f, 0f), Quaternion.identity);   // 爬尸矮半截
+            c.SetActive(true);
         }
         Destroy(gameObject);
     }
@@ -181,6 +217,37 @@ public class ZombieController : MonoBehaviour
         }
 
         if (staggerTimer > 0f) { staggerTimer -= Time.deltaTime; return; }   // 硬直（含爬梯中"卡"）
+
+        if (grabCd > 0f) grabCd -= Time.deltaTime;
+
+        // 序章：博士逃跑——血量≤阈值 → 脱战冲向阳台，到达即消失+掉任务品(计入已清)
+        if (fleeAtFraction > 0f && !fleeing && selfHealth != null
+            && selfHealth.Current <= selfHealth.maxHealth * fleeAtFraction)
+        {
+            fleeing = true;
+            engaged = false;
+            bashDoor = null;
+            CancelWindup();
+            Debug.Log("勿忘博士开始逃跑!");
+        }
+        if (fleeing)
+        {
+            float fdx = fleeTargetX - transform.position.x;
+            if (Mathf.Abs(fdx) <= 1f)
+            {
+                if (!string.IsNullOrEmpty(fleeDropItem)) QuestDrop.Spawn(fleeDropItem, transform.position);
+                KillCount++;   // 逃跑成功也计入已清
+                Debug.Log("勿忘博士消失了,掉落了什么东西...");
+                Destroy(gameObject);
+                return;
+            }
+            int fdir = (int)Mathf.Sign(fdx);
+            facing = fdir;
+            float fx = transform.position.x + fdir * moveSpeed * Time.deltaTime;
+            fx = Blocker.ClampMove(transform.position.x, fx, transform.position.y);
+            transform.position = new Vector3(fx, transform.position.y, transform.position.z);
+            return;
+        }
 
         float dx = player.position.x - transform.position.x;
         float dist = Mathf.Abs(dx);
@@ -215,6 +282,19 @@ public class ZombieController : MonoBehaviour
         if (atk != AtkState.None) { AttackStep(dist, sameFloor); return; }
         if (sameFloor && dist <= touchRange)
         {
+            if (attackKind == AttackKind.Grab)
+            {
+                // 爬尸抓取：无前摇无红条——定身玩家+伤害，冷却期间原地等
+                if (grabCd <= 0f)
+                {
+                    facing = (int)Mathf.Sign(dx);
+                    if (playerHealth != null) playerHealth.TakeDamage(swingDamage);
+                    if (playerMove != null) playerMove.LockFor(grabLockTime);
+                    grabCd = grabCooldown;
+                    Debug.Log("被爬尸抓住了!");
+                }
+                return;
+            }
             atk = AtkState.Windup;
             atkTimer = 0f;
             facing = (int)Mathf.Sign(dx);
@@ -225,6 +305,7 @@ public class ZombieController : MonoBehaviour
         bool targetOtherFloor = Mathf.Abs(targetPos.y - transform.position.y) >= 3f;
         if (targetOtherFloor)
         {
+            if (!useStairs) { LookoutTick(canSeeNow); return; }   // 博士锁本层
             // 目标在另一层 → 走向右梯入口 → 爬
             var zone = StairZone.Nearest(transform.position.x);
             if (zone == null) { LookoutTick(canSeeNow); return; }
