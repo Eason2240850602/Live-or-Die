@@ -31,6 +31,13 @@ public class Health : MonoBehaviour
 
     void Awake() { current = maxHealth; }
 
+    /// <summary>序章导演用：直接设置上限与当前值（buff 1200 / 剥夺流回 100）。</summary>
+    public void SetMaxAndCurrent(float max, float cur)
+    {
+        maxHealth = max;
+        current = Mathf.Clamp(cur, 1f, max);
+    }
+
     /// <summary>消耗品回血，上限截断。</summary>
     public void HealPlayer(float amount)
     {

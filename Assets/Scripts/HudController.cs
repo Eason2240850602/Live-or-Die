@@ -125,7 +125,7 @@ public class HudController : MonoBehaviour
 
             if (hpHighlight > 0f)      { hpHighlight -= Time.deltaTime; hpFill.color = new Color(1f, 0.9f, 0.3f, 1f); }   // 斩杀线高亮(金)
             else if (hpFlash > 0f)     { hpFlash -= Time.deltaTime; hpFill.color = Color.white; }                          // 掉血闪烁
-            else                       hpFill.color = HpColor;
+            else                       hpFill.color = hpGold ? new Color(1f, 0.82f, 0.25f, 0.98f) : HpColor;               // 序章buff=金色
         }
         if (hurtHold > 0f)
         {
@@ -160,6 +160,10 @@ public class HudController : MonoBehaviour
 
     /// <summary>斩杀线触发：血条跳到恢复值并短暂高亮（Health 调用）。</summary>
     public void FlashHpHighlight() => hpHighlight = 0.6f;
+
+    bool hpGold;
+    /// <summary>序章：血条金色（buff 期间），剥夺后恢复红/绿。</summary>
+    public void SetHpGold(bool on) => hpGold = on;
 
     Text executeHint;
     /// <summary>感知v1段3："F 处决"小提示（条件满足才显示）。</summary>
