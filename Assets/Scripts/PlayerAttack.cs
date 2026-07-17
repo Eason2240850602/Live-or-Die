@@ -83,39 +83,74 @@ public class PlayerAttack : MonoBehaviour
         return mx >= px ? 1 : -1;
     }
 
+    // 鼠标指针的世界坐标（X-Y 平面，z=0）
+    Vector2 MouseWorld()
+    {
+        var mouse = Mouse.current;
+        var cam = Camera.main;
+        if (mouse == null || cam == null)
+            return (Vector2)transform.position + Vector2.right * (pm != null ? pm.Facing : 1);
+        Vector3 sp = mouse.position.ReadValue();
+        sp.z = -cam.transform.position.z;   // 相机 z=-10 → 求交到 z=0 平面
+        return cam.ScreenToWorldPoint(sp);
+    }
+
+    // 枪械判定v2：朝鼠标指针方向的真实射线弹道，先撞谁算谁（墙/关门/丧尸矩形）
     void FireRevolver()
     {
         Loaded--;
         var def = ItemDatabase.Get("手枪");
         NoiseSystem.Emit(transform.position, def.noiseRadius, "枪声");   // r=15 全楼警报
 
+        // 鼠标侧转身在先（管朝向），同帧出枪；弹道随即朝新面向侧
         int facing = MouseSide();
-        if (pm != null) pm.SetFacing(facing);   // 翻转朝向，定身结束后由移动输入自然接管
-        ZombieController best = null;
-        float bestDist = float.MaxValue;
+        if (pm != null) pm.SetFacing(facing);
+
+        Vector2 muzzle = (Vector2)transform.position + new Vector2(0f, 0.4f);   // 胸口高度
+        Vector2 dir = (MouseWorld() - muzzle).normalized;
+        if (dir.sqrMagnitude < 0.0001f) dir = new Vector2(facing, 0f);
+        float range = def.attackRange > 0f ? def.attackRange : 25f;
+
+        // 1) 墙/关门/碎石（斜线求交）
+        float stopDist = range;
+        bool hitWall = Blocker.RaycastNearest(muzzle, dir, range, out float wallDist);
+        if (hitWall) stopDist = wallDist;
+
+        // 2) 丧尸受击矩形：取阻挡前最近的一个（IsDying 跳过；限同层，斜穿楼板不判中）
+        ZombieController hitZ = null;
+        float zDist = stopDist;
         foreach (var z in Object.FindObjectsByType<ZombieController>(FindObjectsSortMode.None))
         {
-            if (z.IsDying) continue;   // 左轮修A：尸体不挡枪
-            float zdx = z.transform.position.x - transform.position.x;
-            if (Mathf.Sign(zdx) != facing) continue;
+            if (z.IsDying) continue;
             if (Mathf.Abs(z.transform.position.y - transform.position.y) > 3f) continue;
-            if (Blocker.BlocksLine(transform.position.x, z.transform.position.x, transform.position.y)) continue;
-            float d = Mathf.Abs(zdx);
-            if (d < bestDist) { bestDist = d; best = z; }
+            if (Blocker.RayVsRect(muzzle, dir, z.HitRect(), zDist, out float t) && t < zDist)
+            {
+                zDist = t;
+                hitZ = z;
+            }
         }
 
-        Vector3 muzzle = transform.position + new Vector3(facing * 0.4f, 0.4f, 0f);
-        if (best != null)
+        // 3) 结算 + 真实曳光（画到实际命中点）
+        Vector3 m3 = new Vector3(muzzle.x, muzzle.y, 0f);
+        if (hitZ != null)
         {
-            best.OnHit(transform.position, 0f);
-            var h = best.GetComponent<Health>();
+            hitZ.OnHit(transform.position, 0f);
+            var h = hitZ.GetComponent<Health>();
             if (h != null) h.TakeDamage(def.damage);
-            Tracer(muzzle, best.transform.position);
-            Debug.Log($"枪击命中: {best.name}");
+            Vector2 hp = muzzle + dir * zDist;
+            Tracer(m3, new Vector3(hp.x, hp.y, 0f));
+            Debug.Log($"枪击命中: {hitZ.name}");
+        }
+        else if (hitWall)
+        {
+            Vector2 wp = muzzle + dir * wallDist;
+            Tracer(m3, new Vector3(wp.x, wp.y, 0f));
+            Debug.Log("枪击打在墙上");
         }
         else
         {
-            Tracer(muzzle, muzzle + new Vector3(facing * 12f, 0f, 0f));   // 落空:面朝12单位
+            Vector2 ep = muzzle + dir * range;
+            Tracer(m3, new Vector3(ep.x, ep.y, 0f));
             Debug.Log("枪击落空");
         }
 

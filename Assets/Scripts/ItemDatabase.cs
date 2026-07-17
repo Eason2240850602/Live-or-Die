@@ -69,7 +69,7 @@ public static class ItemDatabase
         { "大锤",   new Def { stackMax = 1, groupSize = 1, weapon = true, desc = "抡圆了能砸塌一面墙。前提是你抡得动。" } },
         // 序章武器（序章期间发放，不进掉落）
         { "武士刀", new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 150, attackRange = 2.2f, knockback = 0.3f, noiseRadius = 5f, swingLock = 0.25f, desc = "她留下的刀。刃口亮得不像这个世界的东西。" } },
-        { "手枪",   new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 110, noiseRadius = 15f, swingLock = 0.2f, desc = "她的力量稳住了你的手腕。指哪,打哪。" } },
+        { "手枪",   new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 110, noiseRadius = 15f, swingLock = 0.2f, attackRange = 25f, desc = "她的力量稳住了你的手腕。指哪,打哪。" } },
 
         // —— 五、工具（预留 · 7.15 / 时段 / 7.21） ——
         { "撬锁器", new Def { stackMax = 1, groupSize = 1, desc = "细钩与扭杆。上锁的容器挡不住它。" } },

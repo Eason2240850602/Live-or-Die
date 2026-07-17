@@ -56,6 +56,19 @@ public class ZombieController : MonoBehaviour
     [Tooltip("可被无声处决（精英/防弹尸设 false）")]
     public bool canBeExecuted = true;
 
+    [Header("受击矩形（枪械判定v2）")]
+    [Tooltip("宽（行走/跑尸0.6,博士0.8）")]
+    public float hitWidth = 0.6f;
+    [Tooltip("高,自脚底起（行走1.8/爬尸0.9/博士2.3）。上 1/3 段=将来爆头判定区(陆战队特性地基),本版不启用")]
+    public float hitHeight = 1.8f;
+
+    /// <summary>受击矩形（世界坐标,以脚底为基准）。射线弹道求交用。</summary>
+    public Rect HitRect()
+    {
+        float feet = transform.position.y - transform.localScale.y;   // 胶囊半高1×Y缩放
+        return new Rect(transform.position.x - hitWidth * 0.5f, feet, hitWidth, hitHeight);
+    }
+
     public enum AttackKind { Swing, Grab }
 
     [Header("序章变体")]
