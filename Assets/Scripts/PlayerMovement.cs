@@ -147,6 +147,16 @@ public class PlayerMovement : MonoBehaviour
         if (kb.wKey.isPressed || kb.upArrowKey.isPressed)   v += 1f;
         if (kb.sKey.isPressed || kb.downArrowKey.isPressed) v -= 1f;
 
+        // 楼梯AD映射：无 W/S 输入时,A/D 按坡向翻译为沿梯移动(朝顶端点水平方向=上);不产生横向位移
+        if (v == 0f)
+        {
+            float ad = 0f;
+            if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) ad += 1f;
+            if (kb.aKey.isPressed || kb.leftArrowKey.isPressed)  ad -= 1f;
+            float slope = Mathf.Sign(climbing.TopPoint.x - climbing.BottomPoint.x);   // 通用坡向,不写死
+            v = ad * slope;
+        }
+
         if (v != 0f)
         {
             float len = Vector2.Distance(climbing.BottomPoint, climbing.TopPoint);

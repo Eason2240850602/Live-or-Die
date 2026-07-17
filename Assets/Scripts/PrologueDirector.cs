@@ -188,6 +188,14 @@ public class PrologueDirector : MonoBehaviour
         HudController.Instance?.SetHpGold(true);
         StartCoroutine(Flash(new Color(1f, 0.85f, 0.3f, 0.8f), 0.5f));   // 金闪
 
+        // 补账：床边粉胶囊在 buff 触发帧消失——背后粉块才是"她"（剥夺时按原位置生成躺倒灰胶囊）
+        if (lilia != null)
+        {
+            liliaRestPos = lilia.transform.position;
+            Destroy(lilia);
+            lilia = null;
+        }
+
         // 莉莉娅在背上：粉色小块贴玩家背后（剥夺时消失）
         if (pm != null)
         {
@@ -210,6 +218,7 @@ public class PrologueDirector : MonoBehaviour
     }
 
     GameObject backCube;
+    Vector3 liliaRestPos;   // 床边位置（剥夺时在此生成躺倒灰胶囊）
     void LateUpdate()
     {
         if (backCube != null && pm != null)
@@ -241,12 +250,14 @@ public class PrologueDirector : MonoBehaviour
         liliaStatus.text = "莉莉娅: 沉睡";
         liliaStatus.color = new Color(0.6f, 0.6f, 0.62f, 1f);
 
-        if (lilia != null)                                           // 躺倒变灰
-        {
-            lilia.transform.Rotate(0f, 0f, 90f);
-            var r = lilia.GetComponent<Renderer>();
-            if (r != null) r.material.SetColor("_BaseColor", new Color(0.45f, 0.45f, 0.48f));
-        }
+        // 补账：生成式——在休息室原位置生成躺倒(旋转90°)的灰胶囊
+        var lying = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        lying.name = "Lilia_Sleeping";
+        Destroy(lying.GetComponent<Collider>());
+        lying.transform.position = new Vector3(liliaRestPos.x, liliaRestPos.y - 0.35f, 0f);   // 躺平贴地
+        lying.transform.localScale = Vector3.one * 0.7f;
+        lying.transform.rotation = Quaternion.Euler(0f, 0f, 90f);
+        lying.GetComponent<Renderer>().material.SetColor("_BaseColor", new Color(0.45f, 0.45f, 0.48f));
         if (extraction != null) extraction.enabled = true;           // 撤离恢复
         Debug.Log("[序章] 剥夺完成");
 
