@@ -19,41 +19,49 @@ public static class ItemDatabase
         public float attackRange;   // 攻击距离（空手默认1.2）
         public float knockback;     // 击退量（空手0=无击退）
         public float swingLock;     // 挥击定身时长（0=用 PlayerAttack 默认）
+        public int rarity;          // 开箱v3 稀有度权重:常见60/少见30/稀有10（0=默认30）
+    }
+
+    /// <summary>开箱v3：稀有度权重（未标=30）。</summary>
+    public static int RarityWeight(string name)
+    {
+        var d = Get(name);
+        return d.rarity > 0 ? d.rarity : 30;
     }
 
     static readonly Dictionary<string, Def> table = new Dictionary<string, Def>
     {
         // —— 一、食物（现役） ——
-        { "罐头",     new Def { stackMax = 5, groupSize = 1, heal = 15, desc = "保质期漫长的午餐肉。末日里的硬通货。" } },
-        { "瓶装水",   new Def { stackMax = 5, groupSize = 1, heal = 10, desc = "未开封的饮用水。比黄金更让人安心。" } },
-        { "巧克力",   new Def { stackMax = 5, groupSize = 1, heal = 8,  desc = "高热量的小奢侈，能提一口气。" } },
-        { "军用口粮", new Def { stackMax = 3, groupSize = 1, heal = 30, desc = "压缩饼干加脱水肉块。难吃，但顶饿。" } },
+        { "罐头",     new Def { stackMax = 5, groupSize = 1, heal = 15, rarity = 60, desc = "保质期漫长的午餐肉。末日里的硬通货。" } },
+        { "瓶装水",   new Def { stackMax = 5, groupSize = 1, heal = 10, rarity = 60, desc = "未开封的饮用水。比黄金更让人安心。" } },
+        { "巧克力",   new Def { stackMax = 5, groupSize = 1, heal = 8,  rarity = 30, desc = "高热量的小奢侈，能提一口气。" } },
+        { "军用口粮", new Def { stackMax = 3, groupSize = 1, heal = 30, rarity = 10, desc = "压缩饼干加脱水肉块。难吃，但顶饿。" } },
         // 预留 · 7.24 疲劳
         { "咖啡豆",   new Def { stackMax = 5, groupSize = 1, desc = "烘焙过的豆子。世界塌了，瘾还在。" } },
 
         // —— 二、医疗（现役） ——
-        { "绷带",     new Def { stackMax = 5, groupSize = 1, heal = 25,  medical = true, desc = "处理外伤的基本款。" } },
-        { "急救包",   new Def { stackMax = 3, groupSize = 1, heal = 100, medical = true, desc = "正经的医疗组合，关键时刻救命。" } },
+        { "绷带",     new Def { stackMax = 5, groupSize = 1, heal = 25,  medical = true, rarity = 60, desc = "处理外伤的基本款。" } },
+        { "急救包",   new Def { stackMax = 3, groupSize = 1, heal = 100, medical = true, rarity = 10, desc = "正经的医疗组合，关键时刻救命。" } },
         // 预留 · 7.2 伤病 / 7.22 制造
-        { "止痛药",   new Def { stackMax = 5, groupSize = 1, desc = "让你撑过疼痛的小药片。" } },
+        { "止痛药",   new Def { stackMax = 5, groupSize = 1, rarity = 30, desc = "让你撑过疼痛的小药片。" } },
         { "消毒酒精", new Def { stackMax = 5, groupSize = 1, desc = "刺鼻但可靠。伤口和器械都用得上。" } },
         { "缝合包",   new Def { stackMax = 2, groupSize = 1, desc = "针线和止血钳。深可见骨的伤才用它。" } },
 
         // —— 三、材料（现役） ——
-        { "木材",   new Def { stackMax = 5, groupSize = 5, desc = "一捆木板，加固或生火都用得上。" } },
-        { "布料",   new Def { stackMax = 5, groupSize = 1, desc = "撕好的布条，修补或包扎的原料。" } },
-        { "胶带",   new Def { stackMax = 5, groupSize = 1, desc = "万能修补神器，末日工程学的核心。" } },
-        { "零件",   new Def { stackMax = 5, groupSize = 1, desc = "螺丝、弹簧和叫不上名字的金属件。" } },
-        { "钉子",   new Def { stackMax = 5, groupSize = 1, desc = "一把锈钉子。钉住木板，也钉住希望。" } },
-        { "金属片", new Def { stackMax = 5, groupSize = 1, desc = "边缘锋利的铁皮，武器台的好原料。" } },
-        { "电线",   new Def { stackMax = 5, groupSize = 1, desc = "几段还带绝缘皮的铜线。" } },
-        { "电池",   new Def { stackMax = 5, groupSize = 1, desc = "还有电。总会有东西用得上它。" } },
+        { "木材",   new Def { stackMax = 5, groupSize = 5, rarity = 60, desc = "一捆木板，加固或生火都用得上。" } },
+        { "布料",   new Def { stackMax = 5, groupSize = 1, rarity = 60, desc = "撕好的布条，修补或包扎的原料。" } },
+        { "胶带",   new Def { stackMax = 5, groupSize = 1, rarity = 30, desc = "万能修补神器，末日工程学的核心。" } },
+        { "零件",   new Def { stackMax = 5, groupSize = 1, rarity = 30, desc = "螺丝、弹簧和叫不上名字的金属件。" } },
+        { "钉子",   new Def { stackMax = 5, groupSize = 1, rarity = 60, desc = "一把锈钉子。钉住木板，也钉住希望。" } },
+        { "金属片", new Def { stackMax = 5, groupSize = 1, rarity = 30, desc = "边缘锋利的铁皮，武器台的好原料。" } },
+        { "电线",   new Def { stackMax = 5, groupSize = 1, rarity = 30, desc = "几段还带绝缘皮的铜线。" } },
+        { "电池",   new Def { stackMax = 5, groupSize = 1, rarity = 30, desc = "还有电。总会有东西用得上它。" } },
         // 预留 · 枪械块
         { "火药",   new Def { stackMax = 5, groupSize = 1, desc = "干燥的黑色粉末。离火远点。" } },
 
         // —— 四、武器（现役：撬棍/弹药） ——
-        { "撬棍",     new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 50, noiseRadius = 6f, attackRange = 2f, knockback = 0.3f, desc = "能开门，也能开颅。可靠的老朋友。" } },
-        { "手枪弹药", new Def { stackMax = 20, groupSize = 5, desc = "9mm，每一发都要省着用。" } },
+        { "撬棍",     new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 50, noiseRadius = 6f, attackRange = 2f, knockback = 0.3f, rarity = 10, desc = "能开门，也能开颅。可靠的老朋友。" } },
+        { "手枪弹药", new Def { stackMax = 20, groupSize = 5, rarity = 30, desc = "9mm，每一发都要省着用。" } },
         // 预留 · 战斗扩展块 / 7.16 / 序章（数值待各自块最终定）
         { "菜刀",   new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 35, noiseRadius = 4f, desc = "厨房里最锋利的东西。挥得快，声音小。" } },
         { "匕首",   new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 30, noiseRadius = 3f, desc = "贴身的最后手段，也是最安静的开场。" } },
@@ -61,7 +69,7 @@ public static class ItemDatabase
         { "大锤",   new Def { stackMax = 1, groupSize = 1, weapon = true, desc = "抡圆了能砸塌一面墙。前提是你抡得动。" } },
         // 序章武器（序章期间发放，不进掉落）
         { "武士刀", new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 150, attackRange = 2.2f, knockback = 0.3f, noiseRadius = 5f, swingLock = 0.25f, desc = "她留下的刀。刃口亮得不像这个世界的东西。" } },
-        { "手枪",   new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 110, noiseRadius = 15f, swingLock = 0.2f, desc = "最后的发言权。整栋楼都会听见。" } },
+        { "手枪",   new Def { stackMax = 1, groupSize = 1, weapon = true, damage = 110, noiseRadius = 15f, swingLock = 0.2f, desc = "她的力量稳住了你的手腕。指哪,打哪。" } },
 
         // —— 五、工具（预留 · 7.15 / 时段 / 7.21） ——
         { "撬锁器", new Def { stackMax = 1, groupSize = 1, desc = "细钩与扭杆。上锁的容器挡不住它。" } },

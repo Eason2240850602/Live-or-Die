@@ -90,7 +90,7 @@ public class PlayerExecution : MonoBehaviour
         t = 0f;
         target = z;
         healthAtStart = health != null ? health.Current : 0f;
-        pm.Locked = true;
+        pm.LockFor(executeDuration);   // 锁时间戳制:自然到期
         HudController.Instance?.SetExecuteHint(false);
 
         // 玩家吸附到目标背后
@@ -104,6 +104,6 @@ public class PlayerExecution : MonoBehaviour
     {
         executing = false;
         target = null;
-        pm.Locked = false;
+        // 锁由时间戳自然到期，不手动清
     }
 }

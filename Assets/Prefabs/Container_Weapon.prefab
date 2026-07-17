@@ -131,8 +131,12 @@ MonoBehaviour:
     weight: 13
   - itemName: "\u519B\u7528\u53E3\u7CAE"
     weight: 10
-  emptyChance: 0.1
-  twoItemChance: 0.45
+  emptyChance: 0
+  chanceOne: 0.15
+  chanceTwo: 0.5
+  guaranteedItem: 
+  guaranteedMin: 8
+  guaranteedMax: 15
   searchRange: 1.5
   searchDuration: 2.5
   searchNoiseRadius: 4

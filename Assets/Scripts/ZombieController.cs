@@ -65,12 +65,24 @@ public class ZombieController : MonoBehaviour
     public float grabLockTime = 1f;
     [Tooltip("抓取冷却（秒）")]
     public float grabCooldown = 3f;
-    [Tooltip("血量比例 ≤ 此值时逃跑（0=不逃）；博士=0.3")]
+    [Tooltip("血量比例 ≤ 此值时原地瞬移消失（0=不触发）；博士=0.3")]
     public float fleeAtFraction = 0f;
-    [Tooltip("逃跑目标 X（到达即消失，掉落任务品）")]
-    public float fleeTargetX = 100f;
-    [Tooltip("逃跑消失时掉落的物品名（空=不掉）")]
+    [Tooltip("消失时掉落的物品名（空=不掉）")]
     public string fleeDropItem = "";
+    [Tooltip("消失巨响半径（全楼警报）")]
+    public float vanishNoiseRadius = 12f;
+
+    [Header("蓄力AOE（博士；aoeDamage=0 关闭）")]
+    [Tooltip("圈内伤害（0=无AOE）")]
+    public float aoeDamage = 0f;
+    [Tooltip("释放条件：同层且距离 ≤ 此值")]
+    public float aoeTriggerRange = 8f;
+    [Tooltip("警示圈半径（直径4=半径2）")]
+    public float aoeRadius = 2f;
+    [Tooltip("蓄力时长（可被硬直打断）")]
+    public float aoeWindup = 1.2f;
+    [Tooltip("冷却")]
+    public float aoeCooldown = 4f;
     [Tooltip("死亡时原地转化生成该模板（跑尸→爬尸）")]
     public bool convertOnDeath = false;
     public GameObject convertTemplate;
@@ -110,9 +122,14 @@ public class ZombieController : MonoBehaviour
     Door bashDoor;           // 非空=砸门中
     float bashTimer, bashNoiseTimer;
 
-    Health selfHealth;       // 逃跑阈值判定
-    bool fleeing;
+    Health selfHealth;       // 消失阈值判定
+    bool vanished;
     float grabCd;            // 抓取冷却计时
+    float aoeCd;
+    bool aoeCharging;
+    float aoeTimer;
+    Vector3 aoeCenter;
+    GameObject aoeCircle;
 
     GameObject barRoot;
     Image barFill;
@@ -168,6 +185,7 @@ public class ZombieController : MonoBehaviour
         StartCoroutine(nameof(FlashWhite));
         staggerTimer = staggerTime;
         CancelWindup();
+        CancelAoe();   // 蓄力可被硬直打断
     }
 
     System.Collections.IEnumerator FlashWhite()
@@ -184,6 +202,7 @@ public class ZombieController : MonoBehaviour
         dying = true;
         KillCount++;
         CancelWindup();
+        CancelAoe();
         StartCoroutine(ShrinkAndDestroy());
     }
 
@@ -219,33 +238,21 @@ public class ZombieController : MonoBehaviour
         if (staggerTimer > 0f) { staggerTimer -= Time.deltaTime; return; }   // 硬直（含爬梯中"卡"）
 
         if (grabCd > 0f) grabCd -= Time.deltaTime;
+        if (aoeCd > 0f) aoeCd -= Time.deltaTime;
 
-        // 序章：博士逃跑——血量≤阈值 → 脱战冲向阳台，到达即消失+掉任务品(计入已清)
-        if (fleeAtFraction > 0f && !fleeing && selfHealth != null
+        // 序章修①：博士——血量≤阈值 → 白闪 → 原地瞬间消失(碎石痕迹+掉资料+巨响r12,计入已清)
+        if (fleeAtFraction > 0f && !vanished && selfHealth != null
             && selfHealth.Current <= selfHealth.maxHealth * fleeAtFraction)
         {
-            fleeing = true;
-            engaged = false;
-            bashDoor = null;
-            CancelWindup();
-            Debug.Log("勿忘博士开始逃跑!");
-        }
-        if (fleeing)
-        {
-            float fdx = fleeTargetX - transform.position.x;
-            if (Mathf.Abs(fdx) <= 1f)
-            {
-                if (!string.IsNullOrEmpty(fleeDropItem)) QuestDrop.Spawn(fleeDropItem, transform.position);
-                KillCount++;   // 逃跑成功也计入已清
-                Debug.Log("勿忘博士消失了,掉落了什么东西...");
-                Destroy(gameObject);
-                return;
-            }
-            int fdir = (int)Mathf.Sign(fdx);
-            facing = fdir;
-            float fx = transform.position.x + fdir * moveSpeed * Time.deltaTime;
-            fx = Blocker.ClampMove(transform.position.x, fx, transform.position.y);
-            transform.position = new Vector3(fx, transform.position.y, transform.position.z);
+            vanished = true;
+            Object.FindFirstObjectByType<PrologueDirector>()?.ScreenFlash(new Color(1f, 1f, 1f, 0.9f), 0.15f);
+            SpawnRubbleDeco();
+            if (!string.IsNullOrEmpty(fleeDropItem)) QuestDrop.Spawn(fleeDropItem, transform.position);
+            NoiseSystem.Emit(transform.position, vanishNoiseRadius, "墙体碎裂", this);
+            Debug.Log("墙体轰然碎裂,勿忘博士消失在烟尘中");
+            KillCount++;
+            DestroyAoeCircle();
+            Destroy(gameObject);
             return;
         }
 
@@ -278,8 +285,20 @@ public class ZombieController : MonoBehaviour
         // —— 追击态 ——
         if (climbZone != null) { ClimbStep(); return; }
         if (bashDoor != null) { BashStep(canSeeNow); return; }
+        if (aoeCharging) { AoeStep(); return; }
 
         if (atk != AtkState.None) { AttackStep(dist, sameFloor); return; }
+
+        // 蓄力AOE：同层、距离≤触发范围、冷却好、且不在近战范围内（近身仍用挥击）
+        if (aoeDamage > 0f && aoeCd <= 0f && sameFloor && dist <= aoeTriggerRange && dist > touchRange)
+        {
+            aoeCharging = true;
+            aoeTimer = 0f;
+            aoeCenter = player.position;                 // 圈锁玩家蓄力起始位置——可以走出去躲
+            facing = (int)Mathf.Sign(dx);
+            BuildAoeCircle();
+            return;
+        }
         if (sameFloor && dist <= touchRange)
         {
             if (attackKind == AttackKind.Grab)
@@ -386,6 +405,73 @@ public class ZombieController : MonoBehaviour
     {
         transform.position = new Vector3(at.x, at.y, transform.position.z);
         climbZone = null;
+    }
+
+    // ———— 蓄力AOE（博士）————
+    void AoeStep()
+    {
+        aoeTimer += Time.deltaTime;
+        if (aoeTimer < aoeWindup) return;
+
+        // 触手砸地：圈内(同层)吃伤害
+        if (player != null && playerHealth != null
+            && Mathf.Abs(player.position.x - aoeCenter.x) <= aoeRadius
+            && Mathf.Abs(player.position.y - aoeCenter.y) < 3f)
+        {
+            playerHealth.TakeDamage(aoeDamage);
+        }
+        Debug.Log("触手砸地!");
+        DestroyAoeCircle();
+        aoeCharging = false;
+        aoeCd = aoeCooldown;
+    }
+
+    void CancelAoe()
+    {
+        if (!aoeCharging) return;
+        aoeCharging = false;
+        DestroyAoeCircle();
+        aoeCd = 1f;   // 被打断后小冷却，防瞬间重新起手
+    }
+
+    void BuildAoeCircle()
+    {
+        aoeCircle = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        aoeCircle.name = "AoeWarning";
+        Object.Destroy(aoeCircle.GetComponent<Collider>());
+        aoeCircle.transform.position = new Vector3(aoeCenter.x, aoeCenter.y - 0.93f, 0f);
+        aoeCircle.transform.localScale = new Vector3(aoeRadius * 2f, 0.02f, aoeRadius * 2f);
+        var m = aoeCircle.GetComponent<Renderer>().material;
+        m.SetColor("_BaseColor", new Color(0.9f, 0.1f, 0.1f, 0.45f));
+        m.SetFloat("_Surface", 1f);
+        m.SetOverrideTag("RenderType", "Transparent");
+        m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        m.SetInt("_ZWrite", 0);
+        m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        m.renderQueue = 3000;
+    }
+
+    void DestroyAoeCircle()
+    {
+        if (aoeCircle != null) Destroy(aoeCircle);
+    }
+
+    // 消失痕迹：几块碎石占位（纯装饰不挡路）
+    void SpawnRubbleDeco()
+    {
+        float fy = transform.position.y - 1.3f;   // 博士脚下地面
+        (float ox, float y, float s)[] pile = { (-0.6f, 0.5f, 1.0f), (0.5f, 0.4f, 0.8f), (0f, 1.1f, 0.7f) };
+        foreach (var p in pile)
+        {
+            var c = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            c.name = "DoctorRubble";
+            Object.Destroy(c.GetComponent<Collider>());
+            c.transform.position = new Vector3(transform.position.x + p.ox, fy + p.y, 0f);
+            c.transform.localScale = Vector3.one * p.s;
+            c.transform.rotation = Quaternion.Euler(0f, 0f, p.ox * 55f);
+            c.GetComponent<Renderer>().material.SetColor("_BaseColor", new Color(0.22f, 0.22f, 0.24f));
+        }
     }
 
     void BashStep(bool canSeeNow)

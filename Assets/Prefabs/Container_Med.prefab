@@ -129,7 +129,12 @@ MonoBehaviour:
     weight: 35
   - itemName: "\u6025\u6551\u5305"
     weight: 15
-  emptyChance: 0.1
-  twoItemChance: 0.45
+  emptyChance: 0
+  chanceOne: 0.15
+  chanceTwo: 0.5
+  guaranteedItem: 
+  guaranteedMin: 8
+  guaranteedMax: 15
   searchRange: 1.5
   searchDuration: 2.5
+  searchNoiseRadius: 4

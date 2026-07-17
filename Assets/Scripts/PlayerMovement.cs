@@ -32,24 +32,24 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>朝向（只读）：+1 右 / -1 左。</summary>
     public int Facing { get; private set; } = 1;
 
+    /// <summary>攻击即转身（左轮修D）：攻击触发帧把朝向翻到鼠标侧。
+    /// 定身期间移动输入被锁不会改写；定身结束后朝向恢复跟随移动输入（Update 自然覆盖）。</summary>
+    public void SetFacing(int dir) => Facing = dir >= 0 ? 1 : -1;
+
     /// <summary>蹲行中（只读）：丧尸视野减半/暗杀条件用。</summary>
     public bool IsSneaking { get; private set; }
 
     /// <summary>跑步中（只读）：声音分级用。</summary>
     public bool IsRunning { get; private set; }
 
-    /// <summary>移动锁定（处决/挥击定身/抓取/剥夺共用）。</summary>
-    public bool Locked { get; set; }
+    // 序章修②：定身锁时间戳制——多来源定身取最长，天然防"提前解锁把别人的锁抹掉"
+    float lockUntil;
 
-    /// <summary>定身 seconds 秒后自动解锁（玩家侧计时——施加方死亡也不会卡锁）。</summary>
-    public void LockFor(float seconds) => StartCoroutine(LockRoutine(seconds));
+    /// <summary>移动锁定（只读）：处决/挥击定身/抓取/剥夺共用，一律经 LockFor 施加。</summary>
+    public bool Locked => Time.time < lockUntil;
 
-    System.Collections.IEnumerator LockRoutine(float seconds)
-    {
-        Locked = true;
-        yield return new WaitForSeconds(seconds);
-        Locked = false;
-    }
+    /// <summary>定身 seconds 秒（时间戳制，取最大值；玩家侧计时——施加方死亡也不会卡锁）。</summary>
+    public void LockFor(float seconds) => lockUntil = Mathf.Max(lockUntil, Time.time + seconds);
 
     float baseScaleY = -1f;
     StairZone climbing;   // 非空 = 攀爬中（吸附路径线）

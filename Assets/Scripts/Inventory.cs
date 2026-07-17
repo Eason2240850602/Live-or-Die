@@ -151,6 +151,28 @@ public class Inventory : MonoBehaviour
         return true;
     }
 
+    /// <summary>背包里某物品总数（左轮备弹显示用）。</summary>
+    public int CountItem(string name)
+    {
+        int n = 0;
+        foreach (var s in slots) if (s.name == name) n += s.count;
+        return n;
+    }
+
+    /// <summary>消耗至多 qty 个 name（装填用），返回实际消耗数。</summary>
+    public int ConsumeItem(string name, int qty)
+    {
+        int taken = 0;
+        for (int i = slots.Count - 1; i >= 0 && qty > 0; i--)
+        {
+            if (slots[i].name != name) continue;
+            int t = Mathf.Min(slots[i].count, qty);
+            slots[i].count -= t; qty -= t; taken += t;
+            if (slots[i].count <= 0) slots.RemoveAt(i);
+        }
+        return taken;
+    }
+
     void ConsumeAt(int index)
     {
         var s = slots[index];

@@ -87,11 +87,15 @@ public class HudController : MonoBehaviour
         inventoryWindow?.CloseIfOpen();   // 重开一局：关背包页并恢复 timeScale
     }
 
+    PlayerAttack playerAttack;
+    Text ammoText;
+
     void AcquireInventory()
     {
         var pm = Object.FindFirstObjectByType<PlayerMovement>();
         inventory = pm != null ? pm.GetComponent<Inventory>() : null;
         playerHealth = pm != null ? pm.GetComponent<Health>() : null;
+        playerAttack = pm != null ? pm.GetComponent<PlayerAttack>() : null;
         lastHealth = playerHealth != null ? playerHealth.Current : -1f;
         hurtHold = 0f;
         SetBorderAlpha(0f);
@@ -103,6 +107,15 @@ public class HudController : MonoBehaviour
             counterText.text = inventory != null ? $"背包 {inventory.Count}/{inventory.capacity} 格" : "背包 0/0 格";
         if (weaponText != null)
             weaponText.text = inventory != null ? $"右手: {inventory.RightHand ?? "空手"}" : "右手: 空手";
+
+        // 左轮弹药 9/6（仅持枪时显示）
+        if (ammoText != null)
+        {
+            bool hasPistol = inventory != null && inventory.LeftHand == "手枪" && playerAttack != null;
+            if (ammoText.gameObject.activeSelf != hasPistol) ammoText.gameObject.SetActive(hasPistol);
+            if (hasPistol)
+                ammoText.text = playerAttack.Reloading ? "左轮 装填中..." : $"左轮 {playerAttack.Loaded}/{playerAttack.Reserve}";
+        }
 
         if (messageTimer > 0f)
         {
@@ -225,6 +238,11 @@ public class HudController : MonoBehaviour
         // 闭环v1：右手武器名（背包计数下方）
         weaponText = MakeText("Weapon", new Vector2(1, 1), new Vector2(-20, -64), new Vector2(320, 40),
             new Vector2(1, 1), TextAnchor.UpperRight, 24);
+
+        // 序章修③：左轮弹药（武器名下方，仅持枪时显示）
+        ammoText = MakeText("Ammo", new Vector2(1, 1), new Vector2(-20, -104), new Vector2(320, 36),
+            new Vector2(1, 1), TextAnchor.UpperRight, 22);
+        ammoText.gameObject.SetActive(false);
 
         // B 结果/打断弹显（中部偏上，限时）
         messageText = MakeText("Message", new Vector2(0.5f, 0.5f), new Vector2(0, 140), new Vector2(1000, 220),

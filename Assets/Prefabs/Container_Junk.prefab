@@ -137,8 +137,12 @@ MonoBehaviour:
     weight: 10
   - itemName: "\u7535\u7EBF"
     weight: 8
-  emptyChance: 0.1
-  twoItemChance: 0.45
+  emptyChance: 0
+  chanceOne: 0.15
+  chanceTwo: 0.5
+  guaranteedItem: 
+  guaranteedMin: 8
+  guaranteedMax: 15
   searchRange: 1.5
   searchDuration: 2.5
   searchNoiseRadius: 4

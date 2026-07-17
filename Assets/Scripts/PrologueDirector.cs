@@ -45,6 +45,14 @@ public class PrologueDirector : MonoBehaviour
 
     int lineIndex;
     string[] activeLines;
+    int quipIndex;
+
+    static readonly string[] Quips =
+    {
+        "莉莉娅:「还撑得住…别停。」",
+        "莉莉娅:「感觉到了吗,她们都在害怕你。」",
+        "莉莉娅:「快了…我有点冷。」",
+    };
 
     PlayerMovement pm;
     Health health;
@@ -137,6 +145,14 @@ public class PrologueDirector : MonoBehaviour
                     int total = killed + alive;
                     int pct = total > 0 ? Mathf.RoundToInt(killed * 100f / total) : 100;
                     progressText.text = $"肃清进度: 已消灭 {killed}/{total} ({pct}%)";
+
+                    // 莉莉娅台词：每过 25% 一句
+                    if (quipIndex < Quips.Length && pct >= (quipIndex + 1) * 25 && pct < 100)
+                    {
+                        HudController.Instance?.ShowMessage(Quips[quipIndex], 3f);
+                        quipIndex++;
+                    }
+
                     if (alive == 0)
                     {
                         stage = Stage.ReturnHome;
@@ -168,13 +184,36 @@ public class PrologueDirector : MonoBehaviour
             pm.runSpeed *= speedMult;
         }
         inventory?.PrologueEquip("武士刀", "手枪");
+        inventory?.AddItem("手枪弹药", 6);                                // 左轮开局备弹 6(弹巢9另计)
         HudController.Instance?.SetHpGold(true);
         StartCoroutine(Flash(new Color(1f, 0.85f, 0.3f, 0.8f), 0.5f));   // 金闪
+
+        // 莉莉娅在背上：粉色小块贴玩家背后（剥夺时消失）
+        if (pm != null)
+        {
+            backCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            backCube.name = "LiliaOnBack";
+            Object.Destroy(backCube.GetComponent<Collider>());
+            backCube.transform.SetParent(pm.transform, false);
+            backCube.transform.localScale = new Vector3(0.3f, 0.45f, 0.3f);
+            backCube.GetComponent<Renderer>().material.SetColor("_BaseColor", new Color(1f, 0.6f, 0.75f));
+        }
+        liliaStatus.text = "莉莉娅: 燃烧中";
+        liliaStatus.color = new Color(1f, 0.82f, 0.3f, 1f);
+        liliaStatus.gameObject.SetActive(true);
+
         progressText.gameObject.SetActive(true);
         arrowText.gameObject.SetActive(true);
         stage = Stage.Cleanse;
         pollTimer = 0f;
-        Debug.Log("[序章] buff 就位:1200血/武士刀+手枪/肃清开始");
+        Debug.Log("[序章] buff 就位:1200血/武士刀+手枪(9/6)/肃清开始");
+    }
+
+    GameObject backCube;
+    void LateUpdate()
+    {
+        if (backCube != null && pm != null)
+            backCube.transform.localPosition = new Vector3(-pm.Facing * 0.45f, 0.3f, 0f);   // 始终在背后
     }
 
     IEnumerator Deprive()
@@ -198,6 +237,9 @@ public class PrologueDirector : MonoBehaviour
         inventory?.PrologueClear();                                  // 双武器消失,左手回禁用
         if (pm != null) { pm.moveSpeed = origMoveSpeed; pm.runSpeed = origRunSpeed; }
         HudController.Instance?.SetHpGold(false);
+        if (backCube != null) Destroy(backCube);                     // 她不在背上了
+        liliaStatus.text = "莉莉娅: 沉睡";
+        liliaStatus.color = new Color(0.6f, 0.6f, 0.62f, 1f);
 
         if (lilia != null)                                           // 躺倒变灰
         {
@@ -243,6 +285,9 @@ public class PrologueDirector : MonoBehaviour
             Debug.Log("[序章] 结束,自由行动");
         }
     }
+
+    /// <summary>全屏闪光（博士消失等外部调用）。</summary>
+    public void ScreenFlash(Color col, float dur) => StartCoroutine(Flash(col, dur));
 
     IEnumerator Flash(Color col, float dur)
     {
@@ -312,7 +357,15 @@ public class PrologueDirector : MonoBehaviour
         questText.text = "任务: 唤醒莉莉娅\n任务: 寻找天使";
         AddOutline(questText);
         questText.gameObject.SetActive(false);
+
+        // 莉莉娅状态（血条右侧小字）
+        liliaStatus = Txt("LiliaStatus", transform, new Vector2(0f, 1f), new Vector2(340, -22),
+            new Vector2(300, 32), TextAnchor.MiddleLeft, 22);
+        AddOutline(liliaStatus);
+        liliaStatus.gameObject.SetActive(false);
     }
+
+    Text liliaStatus;
 
     Image Img(string name, Vector2 aMin, Vector2 aMax, Vector2 pos, Vector2 size, Color col)
     {

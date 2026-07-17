@@ -21,9 +21,15 @@ public class Pickup : MonoBehaviour
     public string containerName = "容器";
     public LootEntry[] lootTable;
 
-    [Header("开箱概率")]
-    [Range(0f, 1f)] public float emptyChance = 0.1f;
-    [Range(0f, 1f)] public float twoItemChance = 0.3f;
+    [Header("开箱概率（v3：1件15%/2件50%/3件35%，无空箱）")]
+    [Range(0f, 1f)] public float emptyChance = 0f;      // 保留字段，v3 置 0
+    [Range(0f, 1f)] public float chanceOne = 0.15f;
+    [Range(0f, 1f)] public float chanceTwo = 0.50f;     // 三件 = 剩余 35%
+
+    [Header("保底模式（弹药箱）：设了名字则必出该物 min~max 个，无其他掉落")]
+    public string guaranteedItem = "";
+    public int guaranteedMin = 8;
+    public int guaranteedMax = 15;
 
     [Header("搜刮")]
     public float searchRange = 1.5f;
@@ -91,21 +97,38 @@ public class Pickup : MonoBehaviour
         Debug.Log($"搜刮完成 [{containerName}]");
 
         // 掷骰一次，存进容器（绝不重掷）
-        if (Random.value < emptyChance)
+        if (!string.IsNullOrEmpty(guaranteedItem))
+        {
+            // 保底模式（弹药箱）：必出 min~max 个
+            int qty = Random.Range(guaranteedMin, guaranteedMax + 1);
+            AddToContents(guaranteedItem, qty);
+            Debug.Log($"开出:{guaranteedItem} x{qty}");
+        }
+        else if (Random.value < emptyChance)   // v3 = 0，字段保留
         {
             Debug.Log("什么都没有...");
             Searched = true;
             Destroy(gameObject);
             yield break;
         }
-
-        int count = Random.value < twoItemChance ? 2 : 1;
-        for (int i = 0; i < count; i++)
+        else
         {
-            string name = RollLoot();
-            int group = ItemDatabase.GroupSize(name);
-            AddToContents(name, group);
-            Debug.Log(group > 1 ? $"开出:{name} x{group}" : $"开出:{name}");
+            // v3：件数 1件15%/2件50%/3件35%；同次开箱不放回，池子抽干才允许重复
+            float r = Random.value;
+            int count = r < chanceOne ? 1 : (r < chanceOne + chanceTwo ? 2 : 3);
+
+            var pool = new List<string>();
+            void Refill() { pool.Clear(); if (lootTable != null) foreach (var e in lootTable) pool.Add(e.itemName); }
+            Refill();
+            for (int i = 0; i < count && pool.Count > 0; i++)
+            {
+                string name = RollFromPool(pool);
+                pool.Remove(name);
+                if (pool.Count == 0) Refill();   // 抽干才允许重复
+                int group = ItemDatabase.GroupSize(name);
+                AddToContents(name, group);
+                Debug.Log(group > 1 ? $"开出:{name} x{group}" : $"开出:{name}");
+            }
         }
         opened = true;
         IsSearching = false;
@@ -169,19 +192,17 @@ public class Pickup : MonoBehaviour
         contents.Add(new ItemStack(name, qty));
     }
 
-    string RollLoot()
+    // v3：按稀有度三档权重(常见60/少见30/稀有10)从候选池抽一件——裸权重(entry.weight)退役
+    string RollFromPool(List<string> pool)
     {
-        if (lootTable == null || lootTable.Length == 0) return "空";
         int total = 0;
-        foreach (var e in lootTable) total += Mathf.Max(0, e.weight);
-        if (total <= 0) return lootTable[0].itemName;
-
+        foreach (var n in pool) total += ItemDatabase.RarityWeight(n);
         int r = Random.Range(0, total);
-        foreach (var e in lootTable)
+        foreach (var n in pool)
         {
-            r -= Mathf.Max(0, e.weight);
-            if (r < 0) return e.itemName;
+            r -= ItemDatabase.RarityWeight(n);
+            if (r < 0) return n;
         }
-        return lootTable[lootTable.Length - 1].itemName;
+        return pool[pool.Count - 1];
     }
 }
