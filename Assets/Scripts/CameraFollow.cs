@@ -30,6 +30,9 @@ public class CameraFollow : MonoBehaviour
 
     Vector3 offset;
     Vector3 velocity;
+
+    /// <summary>跟随偏移（镜头距离候选档切换器读写；Z 分量即侧视距离）。</summary>
+    public Vector3 Offset { get => offset; set => offset = value; }
     PlayerMovement pm;
     Camera cam;
     float baseFov;
