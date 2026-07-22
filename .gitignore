@@ -104,3 +104,11 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# 授权资产不入库(Synty付费包/AssetStore/Mixamo原始FBX;本地与My Assets保留)
+/[Aa]ssets/Synty/
+/[Aa]ssets/Synty.meta
+/[Aa]ssets/ZombieMale_AAB/
+/[Aa]ssets/ZombieMale_AAB.meta
+/[Aa]ssets/ExternalAssets/
+/[Aa]ssets/ExternalAssets.meta
