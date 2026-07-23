@@ -7277,7 +7277,7 @@ MonoBehaviour:
   volume: {fileID: 1083126798}
   psxProfile: {fileID: 11400000, guid: 9a4e5be1b1fb90d4faa188fbedc33ffd, type: 2}
   sketchProfile: {fileID: 11400000, guid: 75a4d42296e19184d9dff59f7ce07406, type: 2}
-  psxRenderScale: 0.7
+  psxRenderScale: 1
   fogDensity: 0.015
   fogColor: {r: 0.16, g: 0.2, b: 0.17, a: 1}
   styledAmbientIntensity: 0.5
@@ -8017,9 +8017,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 11bff589a463a0441bf387ca11e97957, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 5
+  moveSpeed: 4.2
   sneakSpeed: 2.5
-  runSpeed: 7
+  runSpeed: 5.5
   doubleTapWindow: 0.3
   stairSpeed: 3.5
   walkNoise: 3
